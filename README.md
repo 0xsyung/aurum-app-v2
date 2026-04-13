@@ -1,17 +1,13 @@
 # aurum-app-v2
 
-A minimal frontend for interacting with the deployed `ConditionalTokens` contract on Sepolia.
+A React + Vite dApp for interacting with the deployed `ConditionalTokens` contract on Sepolia.
 
-## Target Contract
+## What Has Been Implemented
 
-- Network: Sepolia (`11155111`)
-- Contract: `ConditionalTokens`
-- Address: `0x1d2607F5e52c4bc92891bE5932091b7D74FC719A`
+This app is an operator console for the current `aurum-contracts-v2` state.
 
-## Features
-
-- Connect injected wallet (MetaMask/Rabby)
-- Derive IDs from contract helpers:
+Implemented contract interactions:
+- Read helpers:
   - `getQuestionIdFromString`
   - `getConditionId`
   - `getPositionId`
@@ -21,51 +17,165 @@ A minimal frontend for interacting with the deployed `ConditionalTokens` contrac
   - `mergePositions`
   - `reportPayouts`
   - `redeemPositions`
-- ERC20 support action:
-  - `approve` collateral spending to `ConditionalTokens`
-  - allowance readback
+- ERC20 helper flow:
+  - `approve(spender, amount)`
+  - `allowance(owner, spender)` readback
+  - `decimals()` read for unit conversion
 
-## Local Development
+Wallet/network behavior:
+- Connects to injected wallet (MetaMask/Rabby)
+- Sends write transactions through wallet signer
+- Waits for tx receipts and surfaces confirmation status
 
+Deployment behavior:
+- GitHub Pages CI/CD via GitHub Actions
+- Static asset-safe Vite config (`base: './'`)
+
+## Target Contract
+
+- Network: Sepolia (`11155111`)
+- Contract: `ConditionalTokens`
+- Address: `0x1d2607F5e52c4bc92891bE5932091b7D74FC719A`
+
+## Architecture
+
+Core files:
+- `src/App.tsx`: all interaction logic and UI sections
+- `src/App.css`: operator-console styling
+- `src/index.css`: base typography/layout reset
+- `vite.config.ts`: Vite config (`base: './'`)
+- `.github/workflows/deploy-pages.yml`: Pages build/deploy workflow
+
+Runtime stack:
+- React 19 + TypeScript
+- `viem` for chain reads/writes and wallet client
+- Sepolia chain target only
+
+## Interaction Design
+
+The UI is structured in the same order users typically operate contracts:
+1. Derive IDs (question/condition/position)
+2. Prepare condition
+3. Approve collateral
+4. Split
+5. Merge
+6. Report payouts
+7. Redeem
+
+This reduces operator error by matching contract dependency order.
+
+## Design Decisions and Rationale
+
+### 1) Keep scope to current deployed contract only
+Decision:
+- Build only features supported by live `ConditionalTokens`
+
+Why:
+- Avoid dead UI controls for modules not yet built (oracle/factory/AMM)
+- Keep the app reliable against current backend reality
+
+### 2) Use `viem` directly instead of wagmi abstraction
+Decision:
+- Implement reads/writes via `createPublicClient` + `createWalletClient`
+
+Why:
+- Smaller integration surface
+- Explicit control over transaction flow and errors
+- Good fit for a contract-operator tool
+
+### 3) Human-unit token inputs with on-chain precision conversion
+Decision:
+- Read token `decimals()` and convert via `parseUnits`
+
+Why:
+- Prevent common mistakes from raw integer entry
+- Make split/merge/approve amounts easier to reason about
+
+Tradeoff:
+- Requires token to expose standard `decimals()`
+
+### 4) Minimal inline ABI instead of generated artifacts
+Decision:
+- Define only required ABI fragments in `App.tsx`
+
+Why:
+- Faster bootstrap and lower coupling to artifact pipeline
+- Keeps frontend independent from build-system assumptions
+
+Tradeoff:
+- ABI updates must be manually synced if contract interface changes
+
+### 5) Explicit input guards in frontend
+Decision:
+- Validate addresses and bytes32 fields before submit
+
+Why:
+- Fail fast with clear messages before wallet popup/tx submission
+- Reduce avoidable reverted transactions
+
+### 6) Operator-first UX over retail polish
+Decision:
+- Single-page panel layout with direct controls/status
+
+Why:
+- Target users are dev/operators validating contract behavior
+- Prioritize clarity and transaction traceability over marketing UX
+
+### 7) GitHub Pages-native deployment path
+Decision:
+- Deploy from `main` via Actions (`deploy-pages.yml`)
+
+Why:
+- Simple hosting with no server runtime
+- Fits static Vite output and low-ops workflow
+
+## Environment and RPC
+
+Local dev:
 ```bash
 npm install
 npm run dev
 ```
 
 Optional RPC override:
-
 ```bash
 VITE_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<key> npm run dev
 ```
 
-If not provided, the app falls back to:
-- `https://ethereum-sepolia-rpc.publicnode.com`
+Production (GitHub Pages):
+- Optional repo variable: `VITE_SEPOLIA_RPC_URL`
+- Fallback if unset: `https://ethereum-sepolia-rpc.publicnode.com`
 
-## Build
+## Build and Deploy
 
+Build locally:
 ```bash
 npm run build
 npm run preview
 ```
 
-## Deploy To GitHub Pages
+GitHub Pages workflow:
+- File: `.github/workflows/deploy-pages.yml`
+- Trigger: push to `main`
 
-Workflow file:
-- `.github/workflows/deploy-pages.yml`
+One-time repo setup:
+1. GitHub Settings → Pages
+2. Source: **GitHub Actions**
+3. (Optional) Add repo variable `VITE_SEPOLIA_RPC_URL`
 
-It deploys automatically on push to `main`.
+## Known Limitations
 
-### One-time repo setup
+- No market registry or market list UI
+- No oracle workflow UX (proposal/dispute/finalize)
+- No AMM/liquidity/trading UI
+- No event indexer/history panel
+- No token balance dashboard yet
 
-1. In GitHub repo settings, go to **Pages**.
-2. Set source to **GitHub Actions**.
-3. (Optional) Add repository variable:
-   - `VITE_SEPOLIA_RPC_URL` (if you want your own RPC endpoint in production)
+These are expected for this phase and align with current on-chain scope.
 
-After that, each push to `main` publishes the app.
+## Next Suggested Enhancements
 
-## Notes
-
-- The UI is intentionally operator-focused, not consumer-friendly.
-- `reportPayouts` must be sent from the same oracle address used when preparing the condition.
-- For split/merge amounts, inputs are in human units (the app converts using token `decimals()`).
+- Add reusable preset storage for common condition inputs
+- Add read panels for `payoutDenominator`, `payoutNumerators`, and position balances
+- Add a guided wizard mode for first-time operators
+- Add network switch helper (auto-prompt to Sepolia)
