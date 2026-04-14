@@ -30,6 +30,7 @@ Wallet/network behavior:
 Deployment behavior:
 - GitHub Pages CI/CD via GitHub Actions
 - Static asset-safe Vite config (`base: './'`)
+- Publishes built files to `gh-pages` branch
 
 ## Target Contract
 
@@ -123,10 +124,11 @@ Why:
 
 ### 7) GitHub Pages-native deployment path
 Decision:
-- Deploy from `main` via Actions (`deploy-pages.yml`)
+- Deploy from `main` via Actions (`deploy-pages.yml`) to `gh-pages` branch
 
 Why:
 - Simple hosting with no server runtime
+- Avoids Pages API permission requirements that can fail in restricted repos
 - Fits static Vite output and low-ops workflow
 
 ## Environment and RPC
@@ -157,11 +159,13 @@ npm run preview
 GitHub Pages workflow:
 - File: `.github/workflows/deploy-pages.yml`
 - Trigger: push to `main`
+- Output branch: `gh-pages`
 
 One-time repo setup:
 1. GitHub Settings → Pages
-2. Source: **GitHub Actions**
-3. (Optional) Add repo variable `VITE_SEPOLIA_RPC_URL`
+2. Source: **Deploy from a branch**
+3. Branch: `gh-pages` and folder: `/ (root)`
+4. (Optional) Add repo variable `VITE_SEPOLIA_RPC_URL`
 
 ## Known Limitations
 
