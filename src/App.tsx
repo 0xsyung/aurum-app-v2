@@ -111,6 +111,84 @@ const conditionalTokensAbi = [
   },
 ] as const
 
+const mockOracleAbi = [
+  {
+    type: 'function',
+    name: 'registerQuestion',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'question', type: 'string' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bytes32' }],
+  },
+  {
+    type: 'function',
+    name: 'computeQuestionIdFromString',
+    stateMutability: 'pure',
+    inputs: [{ name: 'question', type: 'string' }],
+    outputs: [{ type: 'bytes32' }],
+  },
+  {
+    type: 'function',
+    name: 'setAnswer',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'questionId', type: 'bytes32' },
+      { name: 'payouts', type: 'uint256[]' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'submitAnswerToConditionalTokens',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'questionId', type: 'bytes32' },
+      { name: 'conditionalTokens', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'getQuestion',
+    stateMutability: 'view',
+    inputs: [{ name: 'questionId', type: 'bytes32' }],
+    outputs: [
+      { name: 'exists', type: 'bool' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+      { name: 'question', type: 'string' },
+      { name: 'createdAt', type: 'uint256' },
+      { name: 'answered', type: 'bool' },
+      { name: 'answeredAt', type: 'uint256' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getAnswer',
+    stateMutability: 'view',
+    inputs: [{ name: 'questionId', type: 'bytes32' }],
+    outputs: [{ name: 'payouts', type: 'uint256[]' }],
+  },
+  {
+    type: 'function',
+    name: 'getQuestionCount',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getQuestionIds',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'offset', type: 'uint256' },
+      { name: 'limit', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bytes32[]' }],
+  },
+] as const
+
 const erc20Abi = [
   {
     type: 'function',
@@ -140,6 +218,16 @@ const erc20Abi = [
     outputs: [{ type: 'bool' }],
   },
 ] as const
+
+type OracleQuestion = {
+  id: `0x${string}`
+  text: string
+  outcomeSlotCount: string
+  answered: boolean
+  createdAt: string
+  answeredAt: string
+  payouts: string
+}
 
 const publicClient = createPublicClient({
   chain: sepolia,
@@ -183,6 +271,17 @@ function App() {
   const [redeemConditionId, setRedeemConditionId] = useState('')
   const [redeemIndexes, setRedeemIndexes] = useState('0')
 
+  const [mockOracleAddress, setMockOracleAddress] = useState(
+    import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
+  )
+  const [oracleQuestionText, setOracleQuestionText] = useState('Will ETH be above 5000 by 2026-12-31?')
+  const [oracleOutcomeCount, setOracleOutcomeCount] = useState('2')
+  const [oracleSetQuestionId, setOracleSetQuestionId] = useState('')
+  const [oracleSetPayouts, setOracleSetPayouts] = useState('1,0')
+  const [oracleCheckQuestionId, setOracleCheckQuestionId] = useState('')
+  const [oracleQuestionDetails, setOracleQuestionDetails] = useState<OracleQuestion | null>(null)
+  const [oracleQuestionList, setOracleQuestionList] = useState<OracleQuestion[]>([])
+
   const networkHint = useMemo(() => `Sepolia RPC: ${rpcUrl}`, [])
 
   async function connectWallet() {
@@ -223,6 +322,17 @@ function App() {
     if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
       throw new Error(`${label} must be 32-byte hex (0x + 64 chars)`)
     }
+  }
+
+  function parseCsvBigInts(value: string, label: string) {
+    const parsed = value
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map((v) => BigInt(v))
+
+    if (parsed.length === 0) throw new Error(`${label} is empty`)
+    return parsed
   }
 
   async function waitAndSet(hash: `0x${string}`) {
@@ -400,12 +510,7 @@ function App() {
       const { walletClient, addr } = await walletClientOrThrow()
       requireBytes32(reportQuestionId, 'Question ID')
 
-      const payouts = reportPayouts
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean)
-        .map((v) => BigInt(v))
-
+      const payouts = parseCsvBigInts(reportPayouts, 'Payout vector')
       if (payouts.length < 2) throw new Error('Need at least 2 payout entries')
 
       const hash = await walletClient.writeContract({
@@ -429,13 +534,7 @@ function App() {
       requireAddress(redeemCollateral, 'Collateral token')
       requireBytes32(redeemConditionId, 'Condition ID')
 
-      const indexes = redeemIndexes
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean)
-        .map((v) => BigInt(v))
-
-      if (indexes.length === 0) throw new Error('Provide at least one outcome index')
+      const indexes = parseCsvBigInts(redeemIndexes, 'Outcome indexes')
 
       const hash = await walletClient.writeContract({
         address: CONDITIONAL_TOKENS,
@@ -452,18 +551,192 @@ function App() {
     }
   }
 
+  async function onRegisterOracleQuestion() {
+    try {
+      const { walletClient, addr } = await walletClientOrThrow()
+      requireAddress(mockOracleAddress, 'MockOracle address')
+
+      const hash = await walletClient.writeContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'registerQuestion',
+        args: [oracleQuestionText, BigInt(oracleOutcomeCount)],
+        account: addr,
+        chain: sepolia,
+      })
+
+      const predictedQid = await publicClient.readContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'computeQuestionIdFromString',
+        args: [oracleQuestionText],
+      })
+
+      setOracleSetQuestionId(predictedQid)
+      setOracleCheckQuestionId(predictedQid)
+
+      await waitAndSet(hash)
+      await loadOracleQuestions()
+    } catch (error) {
+      setStatus((error as Error).message)
+    }
+  }
+
+  async function onSetOracleAnswer() {
+    try {
+      const { walletClient, addr } = await walletClientOrThrow()
+      requireAddress(mockOracleAddress, 'MockOracle address')
+      requireBytes32(oracleSetQuestionId, 'Oracle Question ID')
+
+      const payouts = parseCsvBigInts(oracleSetPayouts, 'Oracle payout vector')
+
+      const hash = await walletClient.writeContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'setAnswer',
+        args: [oracleSetQuestionId as `0x${string}`, payouts],
+        account: addr,
+        chain: sepolia,
+      })
+
+      await waitAndSet(hash)
+      await checkOracleQuestion(oracleSetQuestionId)
+      await loadOracleQuestions()
+    } catch (error) {
+      setStatus((error as Error).message)
+    }
+  }
+
+  async function onSubmitOracleAnswerToConditionalTokens() {
+    try {
+      const { walletClient, addr } = await walletClientOrThrow()
+      requireAddress(mockOracleAddress, 'MockOracle address')
+      requireBytes32(oracleSetQuestionId, 'Oracle Question ID')
+
+      const hash = await walletClient.writeContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'submitAnswerToConditionalTokens',
+        args: [oracleSetQuestionId as `0x${string}`, CONDITIONAL_TOKENS],
+        account: addr,
+        chain: sepolia,
+      })
+
+      await waitAndSet(hash)
+    } catch (error) {
+      setStatus((error as Error).message)
+    }
+  }
+
+  async function checkOracleQuestion(questionId: string) {
+    requireAddress(mockOracleAddress, 'MockOracle address')
+    requireBytes32(questionId, 'Question ID')
+
+    const details = await publicClient.readContract({
+      address: mockOracleAddress as `0x${string}`,
+      abi: mockOracleAbi,
+      functionName: 'getQuestion',
+      args: [questionId as `0x${string}`],
+    })
+
+    const answer = await publicClient.readContract({
+      address: mockOracleAddress as `0x${string}`,
+      abi: mockOracleAbi,
+      functionName: 'getAnswer',
+      args: [questionId as `0x${string}`],
+    })
+
+    const [, slots, text, createdAt, answered, answeredAt] = details
+
+    setOracleQuestionDetails({
+      id: questionId as `0x${string}`,
+      text,
+      outcomeSlotCount: slots.toString(),
+      answered,
+      createdAt: createdAt.toString(),
+      answeredAt: answeredAt.toString(),
+      payouts: answer.length ? answer.map((v) => v.toString()).join(',') : '-',
+    })
+
+    setStatus('Question details loaded.')
+  }
+
+  async function onCheckOracleQuestion() {
+    try {
+      await checkOracleQuestion(oracleCheckQuestionId)
+    } catch (error) {
+      setStatus((error as Error).message)
+    }
+  }
+
+  async function loadOracleQuestions() {
+    try {
+      requireAddress(mockOracleAddress, 'MockOracle address')
+      const total = await publicClient.readContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getQuestionCount',
+      })
+
+      const pageSize = 20n
+      const offset = total > pageSize ? total - pageSize : 0n
+      const ids = await publicClient.readContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getQuestionIds',
+        args: [offset, pageSize],
+      })
+
+      const rows: OracleQuestion[] = await Promise.all(
+        [...ids].reverse().map(async (qid) => {
+          const details = await publicClient.readContract({
+            address: mockOracleAddress as `0x${string}`,
+            abi: mockOracleAbi,
+            functionName: 'getQuestion',
+            args: [qid],
+          })
+
+          const answer = await publicClient.readContract({
+            address: mockOracleAddress as `0x${string}`,
+            abi: mockOracleAbi,
+            functionName: 'getAnswer',
+            args: [qid],
+          })
+
+          const [, slots, text, createdAt, answered, answeredAt] = details
+
+          return {
+            id: qid,
+            text,
+            outcomeSlotCount: slots.toString(),
+            answered,
+            createdAt: createdAt.toString(),
+            answeredAt: answeredAt.toString(),
+            payouts: answer.length ? answer.map((v) => v.toString()).join(',') : '-',
+          } satisfies OracleQuestion
+        })
+      )
+
+      setOracleQuestionList(rows)
+      setStatus('Oracle questions loaded.')
+    } catch (error) {
+      setStatus((error as Error).message)
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
           <h1>Aurum App v2</h1>
-          <p>ConditionalTokens operator console (Sepolia)</p>
+          <p>ConditionalTokens + MockOracle operator console (Sepolia)</p>
         </div>
         <button onClick={connectWallet}>{account ? 'Connected' : 'Connect Wallet'}</button>
       </header>
 
       <section className="status">
-        <div><strong>Contract:</strong> {CONDITIONAL_TOKENS}</div>
+        <div><strong>ConditionalTokens:</strong> {CONDITIONAL_TOKENS}</div>
+        <div><strong>MockOracle:</strong> {mockOracleAddress || '(set in UI or VITE_MOCK_ORACLE_ADDRESS)'}</div>
         <div><strong>Account:</strong> {account || 'Not connected'}</div>
         <div><strong>Network:</strong> Sepolia</div>
         <div><strong>RPC:</strong> {networkHint}</div>
@@ -471,7 +744,81 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>1) Derive IDs</h2>
+        <h2>1) Configure Mock Oracle</h2>
+        <div className="grid">
+          <label>MockOracle address<input value={mockOracleAddress} onChange={(e) => setMockOracleAddress(e.target.value)} placeholder="0x..." /></label>
+        </div>
+        <div className="actions">
+          <button onClick={loadOracleQuestions}>Load Questions</button>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>2) Mock Oracle: Register Question</h2>
+        <div className="grid">
+          <label>Question text<input value={oracleQuestionText} onChange={(e) => setOracleQuestionText(e.target.value)} /></label>
+          <label>Outcome count<input value={oracleOutcomeCount} onChange={(e) => setOracleOutcomeCount(e.target.value)} /></label>
+        </div>
+        <button onClick={onRegisterOracleQuestion}>Register Question</button>
+      </section>
+
+      <section className="card">
+        <h2>3) Mock Oracle: Set and Submit Answer</h2>
+        <div className="grid">
+          <label>Question ID<input value={oracleSetQuestionId} onChange={(e) => setOracleSetQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Payout vector (comma-separated)<input value={oracleSetPayouts} onChange={(e) => setOracleSetPayouts(e.target.value)} placeholder="1,0" /></label>
+        </div>
+        <div className="actions">
+          <button onClick={onSetOracleAnswer}>Set Answer</button>
+          <button onClick={onSubmitOracleAnswerToConditionalTokens}>Submit To ConditionalTokens</button>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>4) Mock Oracle: Check Question</h2>
+        <div className="grid">
+          <label>Question ID<input value={oracleCheckQuestionId} onChange={(e) => setOracleCheckQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+        </div>
+        <div className="actions">
+          <button onClick={onCheckOracleQuestion}>Check Question</button>
+        </div>
+        {oracleQuestionDetails ? (
+          <div className="outputs">
+            <div><strong>ID:</strong> {oracleQuestionDetails.id}</div>
+            <div><strong>Question:</strong> {oracleQuestionDetails.text}</div>
+            <div><strong>Outcome count:</strong> {oracleQuestionDetails.outcomeSlotCount}</div>
+            <div><strong>Answered:</strong> {oracleQuestionDetails.answered ? 'Yes' : 'No'}</div>
+            <div><strong>Payouts:</strong> {oracleQuestionDetails.payouts}</div>
+            <div><strong>Created at:</strong> {oracleQuestionDetails.createdAt}</div>
+            <div><strong>Answered at:</strong> {oracleQuestionDetails.answeredAt}</div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="card">
+        <h2>5) Mock Oracle: Recent Questions</h2>
+        <div className="actions">
+          <button onClick={loadOracleQuestions}>Refresh Questions</button>
+        </div>
+        <div className="list">
+          {oracleQuestionList.length === 0 ? (
+            <div>No questions loaded.</div>
+          ) : (
+            oracleQuestionList.map((row) => (
+              <div key={row.id} className="list-item">
+                <div><strong>ID:</strong> {row.id}</div>
+                <div><strong>Question:</strong> {row.text}</div>
+                <div><strong>Outcomes:</strong> {row.outcomeSlotCount}</div>
+                <div><strong>Answered:</strong> {row.answered ? 'Yes' : 'No'}</div>
+                <div><strong>Payouts:</strong> {row.payouts}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>6) Derive IDs</h2>
         <div className="grid">
           <label>Question text<input value={questionText} onChange={(e) => setQuestionText(e.target.value)} /></label>
           <label>Oracle address<input value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="0x..." /></label>
@@ -488,7 +835,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>2) Prepare Condition</h2>
+        <h2>7) Prepare Condition</h2>
         <div className="grid">
           <label>Oracle<input value={prepareOracle} onChange={(e) => setPrepareOracle(e.target.value)} placeholder="0x..." /></label>
           <label>Question ID<input value={prepareQuestionId} onChange={(e) => setPrepareQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -498,7 +845,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>3) Approve Collateral (ERC20)</h2>
+        <h2>8) Approve Collateral (ERC20)</h2>
         <div className="grid">
           <label>Collateral token<input value={approveCollateral} onChange={(e) => setApproveCollateral(e.target.value)} placeholder="0x..." /></label>
           <label>Amount (human units)<input value={approveAmount} onChange={(e) => setApproveAmount(e.target.value)} /></label>
@@ -511,7 +858,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>4) Split Position</h2>
+        <h2>9) Split Position</h2>
         <div className="grid">
           <label>Collateral token<input value={splitCollateral} onChange={(e) => setSplitCollateral(e.target.value)} placeholder="0x..." /></label>
           <label>Condition ID<input value={splitConditionId} onChange={(e) => setSplitConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -521,7 +868,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>5) Merge Positions</h2>
+        <h2>10) Merge Positions</h2>
         <div className="grid">
           <label>Collateral token<input value={mergeCollateral} onChange={(e) => setMergeCollateral(e.target.value)} placeholder="0x..." /></label>
           <label>Condition ID<input value={mergeConditionId} onChange={(e) => setMergeConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -531,7 +878,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>6) Report Payouts (oracle account only)</h2>
+        <h2>11) Direct Report Payouts (without oracle helper)</h2>
         <div className="grid">
           <label>Question ID<input value={reportQuestionId} onChange={(e) => setReportQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
           <label>Payout vector (comma-separated)<input value={reportPayouts} onChange={(e) => setReportPayouts(e.target.value)} placeholder="1,0" /></label>
@@ -540,7 +887,7 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>7) Redeem Positions</h2>
+        <h2>12) Redeem Positions</h2>
         <div className="grid">
           <label>Collateral token<input value={redeemCollateral} onChange={(e) => setRedeemCollateral(e.target.value)} placeholder="0x..." /></label>
           <label>Condition ID<input value={redeemConditionId} onChange={(e) => setRedeemConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>

@@ -7,6 +7,12 @@ A React + Vite dApp for interacting with the deployed `ConditionalTokens` contra
 This app is an operator console for the current `aurum-contracts-v2` state.
 
 Implemented contract interactions:
+- MockOracle flows:
+  - register question
+  - set/override answer vector
+  - submit answer to `ConditionalTokens`
+  - inspect one question (`getQuestion`, `getAnswer`)
+  - list recent questions (`getQuestionCount`, `getQuestionIds`)
 - Read helpers:
   - `getQuestionIdFromString`
   - `getConditionId`
@@ -32,11 +38,11 @@ Deployment behavior:
 - Static asset-safe Vite config (`base: './'`)
 - Publishes built files to `gh-pages` branch
 
-## Target Contract
+## Target Contracts
 
 - Network: Sepolia (`11155111`)
-- Contract: `ConditionalTokens`
-- Address: `0x1d2607F5e52c4bc92891bE5932091b7D74FC719A`
+- `ConditionalTokens`: `0x1d2607F5e52c4bc92891bE5932091b7D74FC719A`
+- `MockOracle`: `0x9c7b5AcCb8B1B3AA342908075eE3479036F7aD15`
 
 ## Architecture
 
@@ -69,7 +75,7 @@ This reduces operator error by matching contract dependency order.
 
 ### 1) Keep scope to current deployed contract only
 Decision:
-- Build only features supported by live `ConditionalTokens`
+- Build features supported by live `ConditionalTokens` plus simple `MockOracle`
 
 Why:
 - Avoid dead UI controls for modules not yet built (oracle/factory/AMM)
@@ -144,8 +150,14 @@ Optional RPC override:
 VITE_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<key> npm run dev
 ```
 
+Optional mock oracle address:
+```bash
+VITE_MOCK_ORACLE_ADDRESS=0x9c7b5AcCb8B1B3AA342908075eE3479036F7aD15 npm run dev
+```
+
 Production (GitHub Pages):
 - Optional repo variable: `VITE_SEPOLIA_RPC_URL`
+- Optional repo variable: `VITE_MOCK_ORACLE_ADDRESS`
 - Fallback if unset: `https://ethereum-sepolia-rpc.publicnode.com`
 
 ## Build and Deploy
@@ -170,7 +182,7 @@ One-time repo setup:
 ## Known Limitations
 
 - No market registry or market list UI
-- No oracle workflow UX (proposal/dispute/finalize)
+- No production oracle workflow UX (proposal/dispute/finalize)
 - No AMM/liquidity/trading UI
 - No event indexer/history panel
 - No token balance dashboard yet
