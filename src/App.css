@@ -114,6 +114,124 @@ input {
   font-size: 0.86rem;
 }
 
+.activity-log {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  display: grid;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.activity-log h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #334155;
+}
+
+.log-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.log-entry {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.85rem;
+  border-left: 4px solid #94a3b8;
+  background: #f8fafc;
+}
+
+.log-entry.log-success {
+  border-left-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.log-entry.log-error {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.log-entry.log-pending {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.log-empty {
+  color: #94a3b8;
+  padding: 1rem;
+  text-align: center;
+}
+
+.log-header {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.log-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.log-action {
+  font-weight: 600;
+  color: #0f172a;
+  flex: 1;
+}
+
+.log-status {
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.log-status-success {
+  background: #22c55e;
+  color: #fff;
+}
+
+.log-status-error {
+  background: #ef4444;
+  color: #fff;
+}
+
+.log-status-pending {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.log-message {
+  color: #334155;
+  word-break: break-all;
+  margin: 0.3rem 0 0;
+}
+
+.log-hash {
+  margin-top: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.76rem;
+}
+
+.log-hash a {
+  color: #2563eb;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.log-hash a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .topbar {
     flex-direction: column;

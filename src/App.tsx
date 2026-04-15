@@ -229,6 +229,15 @@ type OracleQuestion = {
   payouts: string
 }
 
+type ActivityLogEntry = {
+  id: string
+  timestamp: string
+  action: string
+  status: 'pending' | 'success' | 'error'
+  message: string
+  hash?: string
+}
+
 const publicClient = createPublicClient({
   chain: sepolia,
   transport: http(rpcUrl),
@@ -237,6 +246,7 @@ const publicClient = createPublicClient({
 function App() {
   const [account, setAccount] = useState<string>('')
   const [status, setStatus] = useState<string>('')
+  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
 
   const [questionText, setQuestionText] = useState('Will ETH be above 5000 by 2026-12-31?')
   const [oracle, setOracle] = useState('')
@@ -286,7 +296,7 @@ function App() {
 
   async function connectWallet() {
     if (!window.ethereum) {
-      setStatus('No injected wallet found. Install MetaMask or Rabby.')
+      logActivity('Connect Wallet', 'error', 'No injected wallet found. Install MetaMask or Rabby.')
       return
     }
 
@@ -294,14 +304,14 @@ function App() {
     const addresses = await walletClient.requestAddresses()
     const addr = addresses[0]
     if (!addr) {
-      setStatus('No account returned from wallet.')
+      logActivity('Connect Wallet', 'error', 'No account returned from wallet.')
       return
     }
 
     setAccount(addr)
     setOracle(addr)
     setPrepareOracle(addr)
-    setStatus(`Connected ${addr}`)
+    logActivity('Connect Wallet', 'success', `Connected ${addr}`)
   }
 
   async function walletClientOrThrow() {
@@ -324,6 +334,20 @@ function App() {
     }
   }
 
+  function logActivity(action: string, status: 'pending' | 'success' | 'error', message: string, hash?: string) {
+    const timestamp = new Date().toLocaleTimeString()
+    const entry: ActivityLogEntry = {
+      id: `${Date.now()}-${Math.random()}`,
+      timestamp,
+      action,
+      status,
+      message,
+      hash,
+    }
+    setActivityLog((prev) => [entry, ...prev].slice(0, 50))
+    setStatus(`[${status.toUpperCase()}] ${message}`)
+  }
+
   function parseCsvBigInts(value: string, label: string) {
     const parsed = value
       .split(',')
@@ -335,10 +359,10 @@ function App() {
     return parsed
   }
 
-  async function waitAndSet(hash: `0x${string}`) {
-    setStatus(`Tx submitted: ${hash}`)
+  async function waitAndSet(hash: `0x${string}`, action: string) {
+    logActivity(action, 'pending', `Submitted. Hash: ${hash}`, hash)
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
-    setStatus(`Tx confirmed in block ${receipt.blockNumber}. Hash: ${hash}`)
+    logActivity(action, 'success', `Confirmed in block ${receipt.blockNumber}`, hash)
   }
 
   async function deriveIds() {
@@ -373,9 +397,9 @@ function App() {
       setDerivedQuestionId(qid)
       setDerivedConditionId(cid)
       setDerivedPositionId(pid.toString())
-      setStatus('Derived question, condition, and position IDs.')
+      logActivity('Derive IDs', 'success', 'Question, condition, and position IDs derived')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Derive IDs', 'error', (error as Error).message)
     }
   }
 
@@ -402,9 +426,9 @@ function App() {
         account: addr,
         chain: sepolia,
       })
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Prepare Condition')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Prepare Condition', 'error', (error as Error).message)
     }
   }
 
@@ -425,9 +449,9 @@ function App() {
       ])
 
       setCurrentAllowance(`${allowance.toString()} (${formatUnits(allowance, decimals)})`)
-      setStatus('Allowance refreshed.')
+      logActivity('Refresh Allowance', 'success', `Allowance: ${formatUnits(allowance, decimals)}`)
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Refresh Allowance', 'error', (error as Error).message)
     }
   }
 
@@ -448,10 +472,10 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Approve Collateral')
       await refreshAllowance()
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Approve Collateral', 'error', (error as Error).message)
     }
   }
 
@@ -474,9 +498,9 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Split Position')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Split Position', 'error', (error as Error).message)
     }
   }
 
@@ -499,9 +523,9 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Merge Positions')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Merge Positions', 'error', (error as Error).message)
     }
   }
 
@@ -522,9 +546,9 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Report Payouts')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Report Payouts', 'error', (error as Error).message)
     }
   }
 
@@ -545,9 +569,9 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Redeem Positions')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Redeem Positions', 'error', (error as Error).message)
     }
   }
 
@@ -575,10 +599,10 @@ function App() {
       setOracleSetQuestionId(predictedQid)
       setOracleCheckQuestionId(predictedQid)
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Register Oracle Question')
       await loadOracleQuestions()
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Register Oracle Question', 'error', (error as Error).message)
     }
   }
 
@@ -599,11 +623,11 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Set Oracle Answer')
       await checkOracleQuestion(oracleSetQuestionId)
       await loadOracleQuestions()
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Set Oracle Answer', 'error', (error as Error).message)
     }
   }
 
@@ -622,9 +646,9 @@ function App() {
         chain: sepolia,
       })
 
-      await waitAndSet(hash)
+      await waitAndSet(hash, 'Submit Oracle Answer to ConditionalTokens')
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Submit Oracle Answer to ConditionalTokens', 'error', (error as Error).message)
     }
   }
 
@@ -658,14 +682,14 @@ function App() {
       payouts: answer.length ? answer.map((v) => v.toString()).join(',') : '-',
     })
 
-    setStatus('Question details loaded.')
+    logActivity('Check Oracle Question', 'success', `Question loaded: ${text}`)
   }
 
   async function onCheckOracleQuestion() {
     try {
       await checkOracleQuestion(oracleCheckQuestionId)
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Check Oracle Question', 'error', (error as Error).message)
     }
   }
 
@@ -718,9 +742,9 @@ function App() {
       )
 
       setOracleQuestionList(rows)
-      setStatus('Oracle questions loaded.')
+      logActivity('Load Oracle Questions', 'success', `Loaded ${rows.length} questions`)
     } catch (error) {
-      setStatus((error as Error).message)
+      logActivity('Load Oracle Questions', 'error', (error as Error).message)
     }
   }
 
@@ -733,6 +757,33 @@ function App() {
         </div>
         <button onClick={connectWallet}>{account ? 'Connected' : 'Connect Wallet'}</button>
       </header>
+
+      <section className="activity-log">
+        <h3>Activity Log</h3>
+        {activityLog.length === 0 ? (
+          <div className="log-entry log-empty">No activity yet</div>
+        ) : (
+          <div className="log-list">
+            {activityLog.map((entry) => (
+              <div key={entry.id} className={`log-entry log-${entry.status}`}>
+                <div className="log-header">
+                  <span className="log-time">{entry.timestamp}</span>
+                  <span className="log-action">{entry.action}</span>
+                  <span className={`log-status log-status-${entry.status}`}>{entry.status.toUpperCase()}</span>
+                </div>
+                <div className="log-message">{entry.message}</div>
+                {entry.hash && (
+                  <div className="log-hash">
+                    <a href={`https://sepolia.etherscan.io/tx/${entry.hash}`} target="_blank" rel="noopener noreferrer">
+                      {entry.hash.slice(0, 10)}...{entry.hash.slice(-8)}
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="status">
         <div><strong>ConditionalTokens:</strong> {CONDITIONAL_TOKENS}</div>
