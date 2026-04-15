@@ -707,6 +707,26 @@ function App() {
       requireAddress(mockOracleAddress, 'MockOracle address')
       requireBytes32(oracleSetQuestionId, 'Oracle Question ID')
 
+      // First, verify the question exists on the oracle and has been answered
+      const details = await publicClient.readContract({
+        address: mockOracleAddress as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getQuestion',
+        args: [oracleSetQuestionId as `0x${string}`],
+      })
+
+      const [exists, , , , answered] = details
+
+      if (!exists) {
+        throw new Error(`Question ${oracleSetQuestionId.slice(0, 10)}... does not exist on oracle`)
+      }
+
+      if (!answered) {
+        throw new Error('Question has not been answered yet. Set the answer first using "Step 7a: Set Answer (Oracle)"')
+      }
+
+      logActivity('Submit Oracle Answer to ConditionalTokens', 'pending', `Submitting answer from oracle to ConditionalTokens...`)
+
       const hash = await walletClient.writeContract({
         address: mockOracleAddress as `0x${string}`,
         abi: mockOracleAbi,
@@ -986,29 +1006,49 @@ function App() {
       </section>
 
       <section className="card" data-step="7">
-        <h2>7) Mock Oracle: Set and Submit Answer</h2>
+        <h2>7) Set & Submit Answer (Oracle → ConditionalTokens)</h2>
         <div className="description">
-          <p>Set the answer/outcome for a question and submit it to the ConditionalTokens contract. The payout vector defines which outcomes are winners (1 = winner, 0 = loser).</p>
+          <p>Two-step process: First, set the answer/outcome on the MockOracle contract. Then, submit that answer to ConditionalTokens to resolve the condition and report payouts.</p>
+          <p><strong>Step 7a:</strong> Set answer on oracle (below)</p>
+          <p><strong>Step 7b:</strong> Submit answer to ConditionalTokens (completes resolution)</p>
           <p><strong>Prerequisites:</strong> Question registered (step 2), Positions split (step 6)</p>
-          <p><strong>Next step:</strong> Report payouts (step 8)</p>
+          <p><strong>Next step:</strong> Redeem positions (step 9)</p>
         </div>
         <div className="grid">
           <label>Question ID<input value={oracleSetQuestionId} onChange={(e) => setOracleSetQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
           <label>Payout vector (comma-separated)<input value={oracleSetPayouts} onChange={(e) => setOracleSetPayouts(e.target.value)} placeholder="1,0" /></label>
         </div>
         <div className="actions">
-          <button onClick={onSetOracleAnswer}>Set Answer</button>
-          <button onClick={onSubmitOracleAnswerToConditionalTokens}>Submit To ConditionalTokens</button>
+          <button onClick={onSetOracleAnswer}>Step 7a: Set Answer (Oracle)</button>
+          <button onClick={onSubmitOracleAnswerToConditionalTokens}>Step 7b: Submit to ConditionalTokens</button>
         </div>
-        {renderActionResult('Set Oracle Answer') || renderActionResult('Submit Oracle Answer to ConditionalTokens')}
+        <div className="outputs" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#334155' }}>
+          {renderActionResult('Set Oracle Answer')}
+          {renderActionResult('Submit Oracle Answer to ConditionalTokens')}
+        </div>
       </section>
 
       <section className="card" data-step="8">
-        <h2>8) Direct Report Payouts (without oracle helper)</h2>
+        <h2>8) Redeem Positions</h2>
         <div className="description">
-          <p>Report the final outcome/payout vector directly to the ConditionalTokens contract. This resolves the condition and enables redemption of positions.</p>
+          <p>Claim your winnings based on the resolution. Use this to redeem your outcome tokens back into collateral. You can only redeem the winning outcome tokens.</p>
+          <p><strong>Prerequisites:</strong> Condition resolved and reported (step 7)</p>
+          <p><strong>This is the final step</strong> in the workflow.</p>
+        </div>
+        <div className="grid">
+          <label>Collateral token<input value={redeemCollateral} onChange={(e) => setRedeemCollateral(e.target.value)} placeholder="0x..." /></label>
+          <label>Condition ID<input value={redeemConditionId} onChange={(e) => setRedeemConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Outcome indexes (comma-separated)<input value={redeemIndexes} onChange={(e) => setRedeemIndexes(e.target.value)} placeholder="0,1" /></label>
+        </div>
+        <button onClick={onRedeem}>Redeem</button>
+        {renderActionResult('Redeem Positions')}
+      </section>
+
+      <section className="card">
+        <h2>Alternative: Direct Report Payouts (without oracle)</h2>
+        <div className="description optional">
+          <p>Report the final outcome/payout vector directly to the ConditionalTokens contract. Use this if you're not using the MockOracle or want to report payouts manually.</p>
           <p><strong>Prerequisites:</strong> Condition prepared (step 4), Event has resolved</p>
-          <p><strong>Next step:</strong> Redeem positions (step 9)</p>
         </div>
         <div className="grid">
           <label>Question ID<input value={reportQuestionId} onChange={(e) => setReportQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -1016,22 +1056,6 @@ function App() {
         </div>
         <button onClick={onReportPayouts}>Report</button>
         {renderActionResult('Report Payouts')}
-      </section>
-
-      <section className="card" data-step="9">
-        <h2>9) Redeem Positions</h2>
-        <div className="description">
-          <p>Exchange your outcome tokens for the final proceeds based on the reported payouts. Winners receive full value; losers receive nothing (or proportional value).</p>
-          <p><strong>Prerequisites:</strong> Payouts reported (step 8), You hold outcome tokens</p>
-          <p><strong>Final step:</strong> Workflow complete. Receive your winnings or remaining collateral.</p>
-        </div>
-        <div className="grid">
-          <label>Collateral token<input value={redeemCollateral} onChange={(e) => setRedeemCollateral(e.target.value)} placeholder="0x..." /></label>
-          <label>Condition ID<input value={redeemConditionId} onChange={(e) => setRedeemConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
-          <label>Outcome indexes (comma-separated)<input value={redeemIndexes} onChange={(e) => setRedeemIndexes(e.target.value)} placeholder="0" /></label>
-        </div>
-        <button onClick={onRedeem}>Redeem</button>
-        {renderActionResult('Redeem Positions')}
       </section>
 
       <hr />
