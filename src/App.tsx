@@ -820,11 +820,11 @@ function App() {
         <div><strong>Status:</strong> {status || 'Ready'}</div>
       </section>
 
-      <section className="card">
+      <section className="card" data-step="1">
         <h2>1) Configure Mock Oracle</h2>
         <div className="description">
           <p>Set up the MockOracle contract address to use for creating and managing test questions. This is the first step in the workflow.</p>
-          <p><strong>Next step:</strong> Register a question (section 2)</p>
+          <p><strong>Next step:</strong> Register a question (step 2)</p>
         </div>
         <div className="grid">
           <label>MockOracle address<input value={mockOracleAddress} onChange={(e) => setMockOracleAddress(e.target.value)} placeholder="0x..." /></label>
@@ -834,12 +834,12 @@ function App() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card" data-step="2">
         <h2>2) Mock Oracle: Register Question</h2>
         <div className="description">
           <p>Create a new question in the MockOracle. This generates a unique question ID that will be used throughout the workflow.</p>
-          <p><strong>Prerequisites:</strong> MockOracle configured (section 1)</p>
-          <p><strong>Next steps:</strong> Set answer (section 3) → Derive IDs (section 6)</p>
+          <p><strong>Prerequisites:</strong> MockOracle configured (step 1)</p>
+          <p><strong>Next step:</strong> Derive IDs (step 3)</p>
         </div>
         <div className="grid">
           <label>Question text<input value={oracleQuestionText} onChange={(e) => setOracleQuestionText(e.target.value)} /></label>
@@ -849,12 +849,86 @@ function App() {
         {renderActionResult('Register Oracle Question')}
       </section>
 
-      <section className="card">
-        <h2>3) Mock Oracle: Set and Submit Answer</h2>
+      <section className="card" data-step="3">
+        <h2>3) Derive IDs</h2>
+        <div className="description">
+          <p>Calculate the Condition ID and Position ID from the ConditionalTokens contract using your question, oracle, collateral, and outcome parameters. These IDs are required for all subsequent operations.</p>
+          <p><strong>Prerequisites:</strong> Question registered (step 2)</p>
+          <p><strong>Next step:</strong> Prepare condition (step 4)</p>
+        </div>
+        <div className="grid">
+          <label>Question text<input value={questionText} onChange={(e) => setQuestionText(e.target.value)} /></label>
+          <label>Oracle address<input value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="0x..." /></label>
+          <label>Outcome count<input value={outcomeCount} onChange={(e) => setOutcomeCount(e.target.value)} /></label>
+          <label>Collateral token<input value={collateral} onChange={(e) => setCollateral(e.target.value)} placeholder="0x..." /></label>
+          <label>Outcome index<input value={outcomeIndex} onChange={(e) => setOutcomeIndex(e.target.value)} /></label>
+        </div>
+        <button onClick={deriveIds}>Derive</button>
+        {renderActionResult('Derive IDs')}
+        <div className="outputs">
+          <div><strong>Question ID:</strong> {derivedQuestionId || '-'}</div>
+          <div><strong>Condition ID:</strong> {derivedConditionId || '-'}</div>
+          <div><strong>Position ID:</strong> {derivedPositionId || '-'}</div>
+        </div>
+      </section>
+
+      <section className="card" data-step="4">
+        <h2>4) Prepare Condition</h2>
+        <div className="description">
+          <p>Initialize a condition in the ConditionalTokens contract. This creates the condition state and makes it ready for splitting positions.</p>
+          <p><strong>Prerequisites:</strong> IDs derived (step 3)</p>
+          <p><strong>Next step:</strong> Approve collateral (step 5)</p>
+        </div>
+        <div className="grid">
+          <label>Oracle<input value={prepareOracle} onChange={(e) => setPrepareOracle(e.target.value)} placeholder="0x..." /></label>
+          <label>Question ID<input value={prepareQuestionId} onChange={(e) => setPrepareQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Outcome count<input value={prepareOutcomes} onChange={(e) => setPrepareOutcomes(e.target.value)} /></label>
+        </div>
+        <button onClick={onPrepareCondition}>Prepare</button>
+        {renderActionResult('Prepare Condition')}
+      </section>
+
+      <section className="card" data-step="5">
+        <h2>5) Approve Collateral (ERC20)</h2>
+        <div className="description">
+          <p>Grant the ConditionalTokens contract permission to spend your collateral tokens. This is required before splitting or merging positions.</p>
+          <p><strong>Prerequisites:</strong> Condition prepared (step 4), You hold ERC20 tokens</p>
+          <p><strong>Next step:</strong> Split positions (step 6)</p>
+        </div>
+        <div className="grid">
+          <label>Collateral token<input value={approveCollateral} onChange={(e) => setApproveCollateral(e.target.value)} placeholder="0x..." /></label>
+          <label>Amount (human units)<input value={approveAmount} onChange={(e) => setApproveAmount(e.target.value)} /></label>
+        </div>
+        <div className="actions">
+          <button onClick={onApprove}>Approve</button>
+          <button onClick={refreshAllowance}>Refresh Allowance</button>
+        </div>
+        <div><strong>Allowance:</strong> {currentAllowance || '-'}</div>
+        {renderActionResult('Approve Collateral') || renderActionResult('Refresh Allowance')}
+      </section>
+
+      <section className="card" data-step="6">
+        <h2>6) Split Position</h2>
+        <div className="description">
+          <p>Deposit collateral into the ConditionalTokens contract and receive outcome tokens for each possible outcome. This creates positions in the event.</p>
+          <p><strong>Prerequisites:</strong> Collateral approved (step 5), Condition prepared (step 4)</p>
+          <p><strong>Next step:</strong> Set and submit answer (step 7)</p>
+        </div>
+        <div className="grid">
+          <label>Collateral token<input value={splitCollateral} onChange={(e) => setSplitCollateral(e.target.value)} placeholder="0x..." /></label>
+          <label>Condition ID<input value={splitConditionId} onChange={(e) => setSplitConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Amount (human units)<input value={splitAmount} onChange={(e) => setSplitAmount(e.target.value)} /></label>
+        </div>
+        <button onClick={onSplit}>Split</button>
+        {renderActionResult('Split Position')}
+      </section>
+
+      <section className="card" data-step="7">
+        <h2>7) Mock Oracle: Set and Submit Answer</h2>
         <div className="description">
           <p>Set the answer/outcome for a question and submit it to the ConditionalTokens contract. The payout vector defines which outcomes are winners (1 = winner, 0 = loser).</p>
-          <p><strong>Prerequisites:</strong> Question registered (section 2)</p>
-          <p><strong>Next step:</strong> Report payouts (section 11) or check question status (section 4)</p>
+          <p><strong>Prerequisites:</strong> Question registered (step 2), Positions split (step 6)</p>
+          <p><strong>Next step:</strong> Report payouts (step 8)</p>
         </div>
         <div className="grid">
           <label>Question ID<input value={oracleSetQuestionId} onChange={(e) => setOracleSetQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -867,12 +941,45 @@ function App() {
         {renderActionResult('Set Oracle Answer') || renderActionResult('Submit Oracle Answer to ConditionalTokens')}
       </section>
 
-      <section className="card">
-        <h2>4) Mock Oracle: Check Question</h2>
+      <section className="card" data-step="8">
+        <h2>8) Direct Report Payouts (without oracle helper)</h2>
         <div className="description">
+          <p>Report the final outcome/payout vector directly to the ConditionalTokens contract. This resolves the condition and enables redemption of positions.</p>
+          <p><strong>Prerequisites:</strong> Condition prepared (step 4), Event has resolved</p>
+          <p><strong>Next step:</strong> Redeem positions (step 9)</p>
+        </div>
+        <div className="grid">
+          <label>Question ID<input value={reportQuestionId} onChange={(e) => setReportQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Payout vector (comma-separated)<input value={reportPayouts} onChange={(e) => setReportPayouts(e.target.value)} placeholder="1,0" /></label>
+        </div>
+        <button onClick={onReportPayouts}>Report</button>
+        {renderActionResult('Report Payouts')}
+      </section>
+
+      <section className="card" data-step="9">
+        <h2>9) Redeem Positions</h2>
+        <div className="description">
+          <p>Exchange your outcome tokens for the final proceeds based on the reported payouts. Winners receive full value; losers receive nothing (or proportional value).</p>
+          <p><strong>Prerequisites:</strong> Payouts reported (step 8), You hold outcome tokens</p>
+          <p><strong>Final step:</strong> Workflow complete. Receive your winnings or remaining collateral.</p>
+        </div>
+        <div className="grid">
+          <label>Collateral token<input value={redeemCollateral} onChange={(e) => setRedeemCollateral(e.target.value)} placeholder="0x..." /></label>
+          <label>Condition ID<input value={redeemConditionId} onChange={(e) => setRedeemConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Outcome indexes (comma-separated)<input value={redeemIndexes} onChange={(e) => setRedeemIndexes(e.target.value)} placeholder="0" /></label>
+        </div>
+        <button onClick={onRedeem}>Redeem</button>
+        {renderActionResult('Redeem Positions')}
+      </section>
+
+      <hr />
+
+      <section className="card">
+        <h2>Optional: Mock Oracle: Check Question</h2>
+        <div className="description optional">
           <p>View the details of a registered question, including its answer, outcome count, and payout vector. Use this to verify question state.</p>
-          <p><strong>Prerequisites:</strong> Question registered (section 2)</p>
-          <p><strong>Optional:</strong> Used for verification and debugging</p>
+          <p><strong>Prerequisites:</strong> Question registered (step 2)</p>
+          <p><strong>Use case:</strong> Verification and debugging</p>
         </div>
         <div className="grid">
           <label>Question ID<input value={oracleCheckQuestionId} onChange={(e) => setOracleCheckQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
@@ -895,10 +1002,10 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>5) Mock Oracle: Recent Questions</h2>
-        <div className="description">
+        <h2>Optional: Mock Oracle: Recent Questions</h2>
+        <div className="description optional">
           <p>View a list of recently created questions in the MockOracle. Useful for tracking all questions and their status.</p>
-          <p><strong>Optional:</strong> Used for discovery and monitoring</p>
+          <p><strong>Use case:</strong> Discovery and monitoring</p>
         </div>
         <div className="actions">
           <button onClick={loadOracleQuestions}>Refresh Questions</button>
@@ -922,85 +1029,11 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>6) Derive IDs</h2>
-        <div className="description">
-          <p>Calculate the Condition ID and Position ID from the ConditionalTokens contract using your question, oracle, collateral, and outcome parameters. These IDs are required for all subsequent operations.</p>
-          <p><strong>Prerequisites:</strong> Question registered (section 2)</p>
-          <p><strong>Next step:</strong> Prepare condition (section 7)</p>
-        </div>
-        <div className="grid">
-          <label>Question text<input value={questionText} onChange={(e) => setQuestionText(e.target.value)} /></label>
-          <label>Oracle address<input value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="0x..." /></label>
-          <label>Outcome count<input value={outcomeCount} onChange={(e) => setOutcomeCount(e.target.value)} /></label>
-          <label>Collateral token<input value={collateral} onChange={(e) => setCollateral(e.target.value)} placeholder="0x..." /></label>
-          <label>Outcome index<input value={outcomeIndex} onChange={(e) => setOutcomeIndex(e.target.value)} /></label>
-        </div>
-        <button onClick={deriveIds}>Derive</button>
-        {renderActionResult('Derive IDs')}
-        <div className="outputs">
-          <div><strong>Question ID:</strong> {derivedQuestionId || '-'}</div>
-          <div><strong>Condition ID:</strong> {derivedConditionId || '-'}</div>
-          <div><strong>Position ID:</strong> {derivedPositionId || '-'}</div>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>7) Prepare Condition</h2>
-        <div className="description">
-          <p>Initialize a condition in the ConditionalTokens contract. This creates the condition state and makes it ready for splitting positions.</p>
-          <p><strong>Prerequisites:</strong> IDs derived (section 6)</p>
-          <p><strong>Next step:</strong> Approve collateral (section 8)</p>
-        </div>
-        <div className="grid">
-          <label>Oracle<input value={prepareOracle} onChange={(e) => setPrepareOracle(e.target.value)} placeholder="0x..." /></label>
-          <label>Question ID<input value={prepareQuestionId} onChange={(e) => setPrepareQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
-          <label>Outcome count<input value={prepareOutcomes} onChange={(e) => setPrepareOutcomes(e.target.value)} /></label>
-        </div>
-        <button onClick={onPrepareCondition}>Prepare</button>
-        {renderActionResult('Prepare Condition')}
-      </section>
-
-      <section className="card">
-        <h2>8) Approve Collateral (ERC20)</h2>
-        <div className="description">
-          <p>Grant the ConditionalTokens contract permission to spend your collateral tokens. This is required before splitting or merging positions.</p>
-          <p><strong>Prerequisites:</strong> Condition prepared (section 7), You hold ERC20 tokens</p>
-          <p><strong>Next step:</strong> Split positions (section 9)</p>
-        </div>
-        <div className="grid">
-          <label>Collateral token<input value={approveCollateral} onChange={(e) => setApproveCollateral(e.target.value)} placeholder="0x..." /></label>
-          <label>Amount (human units)<input value={approveAmount} onChange={(e) => setApproveAmount(e.target.value)} /></label>
-        </div>
-        <div className="actions">
-          <button onClick={onApprove}>Approve</button>
-          <button onClick={refreshAllowance}>Refresh Allowance</button>
-        </div>
-        <div><strong>Allowance:</strong> {currentAllowance || '-'}</div>
-        {renderActionResult('Approve Collateral') || renderActionResult('Refresh Allowance')}
-      </section>
-
-      <section className="card">
-        <h2>9) Split Position</h2>
-        <div className="description">
-          <p>Deposit collateral into the ConditionalTokens contract and receive outcome tokens for each possible outcome. This creates positions in the event.</p>
-          <p><strong>Prerequisites:</strong> Collateral approved (section 8), Condition prepared (section 7)</p>
-          <p><strong>Next step:</strong> Report payouts after event resolves (section 11), or merge/redeem positions</p>
-        </div>
-        <div className="grid">
-          <label>Collateral token<input value={splitCollateral} onChange={(e) => setSplitCollateral(e.target.value)} placeholder="0x..." /></label>
-          <label>Condition ID<input value={splitConditionId} onChange={(e) => setSplitConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
-          <label>Amount (human units)<input value={splitAmount} onChange={(e) => setSplitAmount(e.target.value)} /></label>
-        </div>
-        <button onClick={onSplit}>Split</button>
-        {renderActionResult('Split Position')}
-      </section>
-
-      <section className="card">
-        <h2>10) Merge Positions</h2>
-        <div className="description">
+        <h2>Optional: Merge Positions</h2>
+        <div className="description optional">
           <p>Combine all outcome tokens back into collateral (when outcome is unknown or not yet resolved). This is the opposite of split and releases your collateral.</p>
-          <p><strong>Prerequisites:</strong> Positions split (section 9), You hold outcome token sets</p>
-          <p><strong>Optional:</strong> Used before condition resolution if you change your mind</p>
+          <p><strong>Prerequisites:</strong> Positions split (step 6), You hold outcome token sets</p>
+          <p><strong>Use case:</strong> Exit positions before condition resolution</p>
         </div>
         <div className="grid">
           <label>Collateral token<input value={mergeCollateral} onChange={(e) => setMergeCollateral(e.target.value)} placeholder="0x..." /></label>
@@ -1009,37 +1042,6 @@ function App() {
         </div>
         <button onClick={onMerge}>Merge</button>
         {renderActionResult('Merge Positions')}
-      </section>
-
-      <section className="card">
-        <h2>11) Direct Report Payouts (without oracle helper)</h2>
-        <div className="description">
-          <p>Report the final outcome/payout vector directly to the ConditionalTokens contract. This resolves the condition and enables redemption of positions.</p>
-          <p><strong>Prerequisites:</strong> Condition prepared (section 7), Event has resolved</p>
-          <p><strong>Next step:</strong> Redeem positions (section 12)</p>
-        </div>
-        <div className="grid">
-          <label>Question ID<input value={reportQuestionId} onChange={(e) => setReportQuestionId(e.target.value)} placeholder="0x...32 bytes" /></label>
-          <label>Payout vector (comma-separated)<input value={reportPayouts} onChange={(e) => setReportPayouts(e.target.value)} placeholder="1,0" /></label>
-        </div>
-        <button onClick={onReportPayouts}>Report</button>
-        {renderActionResult('Report Payouts')}
-      </section>
-
-      <section className="card">
-        <h2>12) Redeem Positions</h2>
-        <div className="description">
-          <p>Exchange your outcome tokens for the final proceeds based on the reported payouts. Winners receive full value; losers receive nothing (or proportional value).</p>
-          <p><strong>Prerequisites:</strong> Payouts reported (section 11), You hold outcome tokens</p>
-          <p><strong>Final step:</strong> Workflow complete. Receive your winnings or remaining collateral.</p>
-        </div>
-        <div className="grid">
-          <label>Collateral token<input value={redeemCollateral} onChange={(e) => setRedeemCollateral(e.target.value)} placeholder="0x..." /></label>
-          <label>Condition ID<input value={redeemConditionId} onChange={(e) => setRedeemConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
-          <label>Outcome indexes (comma-separated)<input value={redeemIndexes} onChange={(e) => setRedeemIndexes(e.target.value)} placeholder="0" /></label>
-        </div>
-        <button onClick={onRedeem}>Redeem</button>
-        {renderActionResult('Redeem Positions')}
       </section>
     </main>
   )

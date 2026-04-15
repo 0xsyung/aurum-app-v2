@@ -68,6 +68,36 @@ button:hover {
   min-width: 0;
   overflow: hidden;
   word-break: break-word;
+  position: relative;
+}
+
+.card[data-step]::before {
+  content: attr(data-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+  border-radius: 14px 0 0 14px;
+}
+
+.card[data-step]::after {
+  content: attr(data-step);
+  position: absolute;
+  left: -16px;
+  top: 20px;
+  width: 32px;
+  height: 32px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .card h2 {
@@ -81,6 +111,12 @@ button:hover {
   padding: 0.7rem;
   border-radius: 6px;
   margin: 0.5rem 0 0.7rem 0;
+  padding-left: 12px;
+}
+
+.description.optional {
+  background: rgba(168, 85, 247, 0.05);
+  border-left-color: #a855f7;
 }
 
 .description p {
@@ -101,6 +137,21 @@ button:hover {
 .description strong {
   color: #0f172a;
   font-weight: 600;
+}
+
+.description .step-num {
+  display: inline-block;
+  background: #3b82f6;
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  margin-right: 0.3rem;
+}
+
+.description.optional .step-num {
+  background: #a855f7;
 }
 
 .grid {
@@ -381,6 +432,13 @@ input {
 
 .log-hash a:hover {
   text-decoration: underline;
+}
+
+.app-shell > hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 2px dashed #cbd5e1;
+  opacity: 0.6;
 }
 
 @media (max-width: 640px) {
