@@ -7,12 +7,21 @@
   box-sizing: border-box;
 }
 
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
 .app-shell {
+  min-height: 100vh;
   max-width: 1080px;
   margin: 0 auto;
   padding: 2rem 1rem 4rem;
   display: grid;
   gap: 1rem;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -55,6 +64,10 @@ button:hover {
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
   display: grid;
   gap: 0.6rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .card h2 {
@@ -66,6 +79,8 @@ button:hover {
   display: grid;
   gap: 0.7rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  width: 100%;
+  min-width: 0;
 }
 
 label {
@@ -73,6 +88,7 @@ label {
   gap: 0.3rem;
   font-size: 0.85rem;
   color: #334155;
+  min-width: 0;
 }
 
 input {
@@ -82,6 +98,9 @@ input {
   padding: 0.55rem 0.65rem;
   font-size: 0.95rem;
   background: #fff;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .outputs {
@@ -89,18 +108,100 @@ input {
   gap: 0.35rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.78rem;
-  word-break: break-all;
+  word-break: break-word;
+  width: 100%;
+  min-width: 0;
+}
+
+.action-result {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.6rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.action-result.success {
+  border-left: 3px solid #22c55e;
+  background: #f0fdf4;
+}
+
+.action-result.error {
+  border-left: 3px solid #ef4444;
+  background: #fef2f2;
+}
+
+.action-result.pending {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.action-result-header {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.action-result-time {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.action-result-status {
+  font-weight: 700;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.action-result-status.success {
+  background: #22c55e;
+  color: #fff;
+}
+
+.action-result-status.error {
+  background: #ef4444;
+  color: #fff;
+}
+
+.action-result-status.pending {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.action-result-message {
+  color: #334155;
+  word-break: break-word;
+  margin: 0;
+}
+
+.action-result-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.73rem;
+  margin-top: 0.3rem;
 }
 
 .actions {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
 }
 
 .list {
   display: grid;
   gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .list-item {
@@ -110,8 +211,10 @@ input {
   background: #f8fafc;
   display: grid;
   gap: 0.25rem;
-  word-break: break-all;
+  word-break: break-word;
   font-size: 0.86rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .activity-log {
@@ -124,6 +227,8 @@ input {
   gap: 0.75rem;
   max-height: 400px;
   overflow-y: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .activity-log h3 {
@@ -135,6 +240,8 @@ input {
 .log-list {
   display: grid;
   gap: 0.6rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .log-entry {
@@ -144,6 +251,11 @@ input {
   font-size: 0.85rem;
   border-left: 4px solid #94a3b8;
   background: #f8fafc;
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .log-entry.log-success {
@@ -171,19 +283,24 @@ input {
   display: flex;
   gap: 0.8rem;
   align-items: center;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .log-time {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.78rem;
   color: #64748b;
+  white-space: nowrap;
 }
 
 .log-action {
   font-weight: 600;
   color: #0f172a;
   flex: 1;
+  min-width: 100px;
+  word-break: break-word;
 }
 
 .log-status {
@@ -193,6 +310,7 @@ input {
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .log-status-success {
@@ -212,14 +330,19 @@ input {
 
 .log-message {
   color: #334155;
-  word-break: break-all;
-  margin: 0.3rem 0 0;
+  word-break: break-word;
+  margin: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .log-hash {
-  margin-top: 0.4rem;
+  margin-top: 0.3rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .log-hash a {

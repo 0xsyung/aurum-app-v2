@@ -348,6 +348,32 @@ function App() {
     setStatus(`[${status.toUpperCase()}] ${message}`)
   }
 
+  function getLastActivityForAction(actionName: string): ActivityLogEntry | undefined {
+    return activityLog.find((entry) => entry.action === actionName)
+  }
+
+  function renderActionResult(actionName: string) {
+    const entry = getLastActivityForAction(actionName)
+    if (!entry) return null
+
+    return (
+      <div className={`action-result ${entry.status}`}>
+        <div className="action-result-header">
+          <span className="action-result-time">{entry.timestamp}</span>
+          <span className={`action-result-status ${entry.status}`}>{entry.status}</span>
+        </div>
+        <div className="action-result-message">{entry.message}</div>
+        {entry.hash && (
+          <div className="action-result-hash">
+            <a href={`https://sepolia.etherscan.io/tx/${entry.hash}`} target="_blank" rel="noopener noreferrer">
+              Tx: {entry.hash.slice(0, 12)}...{entry.hash.slice(-8)}
+            </a>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function parseCsvBigInts(value: string, label: string) {
     const parsed = value
       .split(',')
@@ -811,6 +837,7 @@ function App() {
           <label>Outcome count<input value={oracleOutcomeCount} onChange={(e) => setOracleOutcomeCount(e.target.value)} /></label>
         </div>
         <button onClick={onRegisterOracleQuestion}>Register Question</button>
+        {renderActionResult('Register Oracle Question')}
       </section>
 
       <section className="card">
@@ -823,6 +850,7 @@ function App() {
           <button onClick={onSetOracleAnswer}>Set Answer</button>
           <button onClick={onSubmitOracleAnswerToConditionalTokens}>Submit To ConditionalTokens</button>
         </div>
+        {renderActionResult('Set Oracle Answer') || renderActionResult('Submit Oracle Answer to ConditionalTokens')}
       </section>
 
       <section className="card">
@@ -833,6 +861,7 @@ function App() {
         <div className="actions">
           <button onClick={onCheckOracleQuestion}>Check Question</button>
         </div>
+        {renderActionResult('Check Oracle Question')}
         {oracleQuestionDetails ? (
           <div className="outputs">
             <div><strong>ID:</strong> {oracleQuestionDetails.id}</div>
@@ -851,6 +880,7 @@ function App() {
         <div className="actions">
           <button onClick={loadOracleQuestions}>Refresh Questions</button>
         </div>
+        {renderActionResult('Load Oracle Questions')}
         <div className="list">
           {oracleQuestionList.length === 0 ? (
             <div>No questions loaded.</div>
@@ -878,6 +908,7 @@ function App() {
           <label>Outcome index<input value={outcomeIndex} onChange={(e) => setOutcomeIndex(e.target.value)} /></label>
         </div>
         <button onClick={deriveIds}>Derive</button>
+        {renderActionResult('Derive IDs')}
         <div className="outputs">
           <div><strong>Question ID:</strong> {derivedQuestionId || '-'}</div>
           <div><strong>Condition ID:</strong> {derivedConditionId || '-'}</div>
@@ -893,6 +924,7 @@ function App() {
           <label>Outcome count<input value={prepareOutcomes} onChange={(e) => setPrepareOutcomes(e.target.value)} /></label>
         </div>
         <button onClick={onPrepareCondition}>Prepare</button>
+        {renderActionResult('Prepare Condition')}
       </section>
 
       <section className="card">
@@ -906,6 +938,7 @@ function App() {
           <button onClick={refreshAllowance}>Refresh Allowance</button>
         </div>
         <div><strong>Allowance:</strong> {currentAllowance || '-'}</div>
+        {renderActionResult('Approve Collateral') || renderActionResult('Refresh Allowance')}
       </section>
 
       <section className="card">
@@ -916,6 +949,7 @@ function App() {
           <label>Amount (human units)<input value={splitAmount} onChange={(e) => setSplitAmount(e.target.value)} /></label>
         </div>
         <button onClick={onSplit}>Split</button>
+        {renderActionResult('Split Position')}
       </section>
 
       <section className="card">
@@ -926,6 +960,7 @@ function App() {
           <label>Amount (human units)<input value={mergeAmount} onChange={(e) => setMergeAmount(e.target.value)} /></label>
         </div>
         <button onClick={onMerge}>Merge</button>
+        {renderActionResult('Merge Positions')}
       </section>
 
       <section className="card">
@@ -935,6 +970,7 @@ function App() {
           <label>Payout vector (comma-separated)<input value={reportPayouts} onChange={(e) => setReportPayouts(e.target.value)} placeholder="1,0" /></label>
         </div>
         <button onClick={onReportPayouts}>Report</button>
+        {renderActionResult('Report Payouts')}
       </section>
 
       <section className="card">
@@ -945,6 +981,7 @@ function App() {
           <label>Outcome indexes (comma-separated)<input value={redeemIndexes} onChange={(e) => setRedeemIndexes(e.target.value)} placeholder="0" /></label>
         </div>
         <button onClick={onRedeem}>Redeem</button>
+        {renderActionResult('Redeem Positions')}
       </section>
     </main>
   )
