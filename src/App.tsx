@@ -243,6 +243,33 @@ const publicClient = createPublicClient({
   transport: http(rpcUrl),
 })
 
+const TIMELINE_STEPS = [
+  { number: 1, label: 'Configure\nMock Oracle' },
+  { number: 2, label: 'Register\nQuestion' },
+  { number: 3, label: 'Derive\nIDs' },
+  { number: 4, label: 'Prepare\nCondition' },
+  { number: 5, label: 'Approve\nCollateral' },
+  { number: 6, label: 'Split\nPosition' },
+  { number: 7, label: 'Set & Submit\nAnswer' },
+  { number: 8, label: 'Report\nPayouts' },
+  { number: 9, label: 'Redeem\nPositions' },
+]
+
+function Timeline() {
+  return (
+    <aside className="timeline">
+      <div className="timeline-steps">
+        {TIMELINE_STEPS.map((step) => (
+          <div key={step.number} className="timeline-step">
+            <div className="timeline-step-dot">{step.number}</div>
+            <div className="timeline-step-label">{step.label}</div>
+          </div>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
 function App() {
   const [account, setAccount] = useState<string>('')
   const [status, setStatus] = useState<string>('')
@@ -784,32 +811,36 @@ function App() {
         <button onClick={connectWallet}>{account ? 'Connected' : 'Connect Wallet'}</button>
       </header>
 
-      <section className="activity-log">
-        <h3>Activity Log</h3>
-        {activityLog.length === 0 ? (
-          <div className="log-entry log-empty">No activity yet</div>
-        ) : (
-          <div className="log-list">
-            {activityLog.map((entry) => (
-              <div key={entry.id} className={`log-entry log-${entry.status}`}>
-                <div className="log-header">
-                  <span className="log-time">{entry.timestamp}</span>
-                  <span className="log-action">{entry.action}</span>
-                  <span className={`log-status log-status-${entry.status}`}>{entry.status.toUpperCase()}</span>
-                </div>
-                <div className="log-message">{entry.message}</div>
-                {entry.hash && (
-                  <div className="log-hash">
-                    <a href={`https://sepolia.etherscan.io/tx/${entry.hash}`} target="_blank" rel="noopener noreferrer">
-                      {entry.hash.slice(0, 10)}...{entry.hash.slice(-8)}
-                    </a>
+      <div className="timeline-wrapper">
+        <Timeline />
+
+        <div className="main-content">
+        <section className="activity-log">
+          <h3>Activity Log</h3>
+          {activityLog.length === 0 ? (
+            <div className="log-entry log-empty">No activity yet</div>
+          ) : (
+            <div className="log-list">
+              {activityLog.map((entry) => (
+                <div key={entry.id} className={`log-entry log-${entry.status}`}>
+                  <div className="log-header">
+                    <span className="log-time">{entry.timestamp}</span>
+                    <span className="log-action">{entry.action}</span>
+                    <span className={`log-status log-status-${entry.status}`}>{entry.status.toUpperCase()}</span>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+                  <div className="log-message">{entry.message}</div>
+                  {entry.hash && (
+                    <div className="log-hash">
+                      <a href={`https://sepolia.etherscan.io/tx/${entry.hash}`} target="_blank" rel="noopener noreferrer">
+                        {entry.hash.slice(0, 10)}...{entry.hash.slice(-8)}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
       <section className="status">
         <div><strong>ConditionalTokens:</strong> {CONDITIONAL_TOKENS}</div>
@@ -1043,6 +1074,8 @@ function App() {
         <button onClick={onMerge}>Merge</button>
         {renderActionResult('Merge Positions')}
       </section>
+        </div>
+      </div>
     </main>
   )
 }
