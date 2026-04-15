@@ -296,6 +296,7 @@ function App() {
   const [splitCollateral, setSplitCollateral] = useState('')
   const [splitConditionId, setSplitConditionId] = useState('')
   const [splitAmount, setSplitAmount] = useState('10')
+  const [splitPositionIds, setSplitPositionIds] = useState<string[]>([])
 
   const [mergeCollateral, setMergeCollateral] = useState('')
   const [mergeConditionId, setMergeConditionId] = useState('')
@@ -552,6 +553,22 @@ function App() {
       })
 
       await waitAndSet(hash, 'Split Position')
+
+      // Calculate position IDs for each outcome
+      const outcomeCount = BigInt(prepareOutcomes)
+      const positionIds: string[] = []
+
+      for (let i = 0; i < Number(outcomeCount); i++) {
+        const positionId = await publicClient.readContract({
+          address: CONDITIONAL_TOKENS,
+          abi: conditionalTokensAbi,
+          functionName: 'getPositionId',
+          args: [token, splitConditionId as `0x${string}`, BigInt(i)],
+        })
+        positionIds.push(positionId.toString())
+      }
+
+      setSplitPositionIds(positionIds)
     } catch (error) {
       logActivity('Split Position', 'error', (error as Error).message)
     }
@@ -952,6 +969,20 @@ function App() {
         </div>
         <button onClick={onSplit}>Split</button>
         {renderActionResult('Split Position')}
+        {splitPositionIds.length > 0 && (
+          <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#15803d', marginBottom: '0.5rem' }}>
+              Outcome Token Position IDs:
+            </div>
+            <div className="outputs">
+              {splitPositionIds.map((id, index) => (
+                <div key={index} style={{ fontSize: '0.8rem', color: '#166534', wordBreak: 'break-all' }}>
+                  <strong>Outcome {index}:</strong> {id}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card" data-step="7">
