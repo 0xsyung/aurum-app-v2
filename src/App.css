@@ -75,6 +75,34 @@ button:hover {
   font-size: 1.1rem;
 }
 
+.description {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid #3b82f6;
+  padding: 0.7rem;
+  border-radius: 6px;
+  margin: 0.5rem 0 0.7rem 0;
+}
+
+.description p {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.description p:first-child {
+  margin-top: 0;
+}
+
+.description p:last-child {
+  margin-bottom: 0;
+}
+
+.description strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
 .grid {
   display: grid;
   gap: 0.7rem;
