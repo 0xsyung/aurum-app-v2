@@ -112,6 +112,16 @@ const conditionalTokensAbi = [
     ],
     outputs: [],
   },
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
 ] as const
 
 const mockOracleAbi = [
@@ -312,6 +322,10 @@ function App() {
   const [redeemConditionId, setRedeemConditionId] = useState('')
   const [redeemIndexes, setRedeemIndexes] = useState('0')
 
+  const [balanceCheckConditionId, setBalanceCheckConditionId] = useState('')
+  const [balanceCheckOutcomeIndexes, setBalanceCheckOutcomeIndexes] = useState('0,1')
+  const [outcomeTokenBalances, setOutcomeTokenBalances] = useState<{ index: number; balance: string }[]>([])
+
   const [mockOracleAddress, setMockOracleAddress] = useState(
     import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
   )
@@ -463,6 +477,7 @@ function App() {
       setSplitConditionId(cid)
       setMergeConditionId(cid)
       setRedeemConditionId(cid)
+      setBalanceCheckConditionId(cid)
       
       logActivity('Derive IDs', 'success', 'Question, condition, and position IDs derived')
     } catch (error) {
@@ -856,6 +871,44 @@ function App() {
     }
   }
 
+  async function checkOutcomeTokenBalances() {
+    try {
+      if (!account) throw new Error('Connect wallet first')
+      requireBytes32(balanceCheckConditionId, 'Condition ID')
+
+      const outcomeIndexes = parseCsvBigInts(balanceCheckOutcomeIndexes, 'Outcome indexes')
+      const collateralToken = collateral as `0x${string}`
+
+      const balances = await Promise.all(
+        outcomeIndexes.map(async (outcomeIndex) => {
+          const positionId = await publicClient.readContract({
+            address: CONDITIONAL_TOKENS,
+            abi: conditionalTokensAbi,
+            functionName: 'getPositionId',
+            args: [collateralToken, balanceCheckConditionId as `0x${string}`, outcomeIndex],
+          })
+
+          const balance = await publicClient.readContract({
+            address: CONDITIONAL_TOKENS,
+            abi: conditionalTokensAbi,
+            functionName: 'balanceOf',
+            args: [account as `0x${string}`, BigInt(positionId.toString())],
+          })
+
+          return {
+            index: Number(outcomeIndex),
+            balance: balance.toString(),
+          }
+        })
+      )
+
+      setOutcomeTokenBalances(balances)
+      logActivity('Check Outcome Token Balances', 'success', `Retrieved balances for ${balances.length} outcomes`)
+    } catch (error) {
+      logActivity('Check Outcome Token Balances', 'error', (error as Error).message)
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -1016,6 +1069,35 @@ function App() {
               {splitPositionIds.map((id, index) => (
                 <div key={index} style={{ fontSize: '0.8rem', color: '#166534', wordBreak: 'break-all' }}>
                   <strong>Outcome {index}:</strong> {id}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>6b) Check Outcome Token Balances</h2>
+        <div className="description optional">
+          <p>Check your balance of outcome tokens after splitting. This shows how many outcome tokens you hold for each outcome index.</p>
+          <p><strong>Prerequisites:</strong> Positions split (step 6), Connected to wallet</p>
+          <p><strong>Use case:</strong> Verify token holdings and track positions</p>
+        </div>
+        <div className="grid">
+          <label>Condition ID<input value={balanceCheckConditionId} onChange={(e) => setBalanceCheckConditionId(e.target.value)} placeholder="0x...32 bytes" /></label>
+          <label>Outcome indexes (comma-separated)<input value={balanceCheckOutcomeIndexes} onChange={(e) => setBalanceCheckOutcomeIndexes(e.target.value)} placeholder="0,1" /></label>
+        </div>
+        <button onClick={checkOutcomeTokenBalances}>Check Balances</button>
+        {renderActionResult('Check Outcome Token Balances')}
+        {outcomeTokenBalances.length > 0 && (
+          <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f0f4ff', border: '1px solid #86c0ff', borderRadius: '8px' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1546b3', marginBottom: '0.5rem' }}>
+              Outcome Token Balances:
+            </div>
+            <div className="outputs">
+              {outcomeTokenBalances.map((balance, index) => (
+                <div key={index} style={{ fontSize: '0.8rem', color: '#1f3b8c' }}>
+                  <strong>Outcome {balance.index}:</strong> {balance.balance}
                 </div>
               ))}
             </div>
