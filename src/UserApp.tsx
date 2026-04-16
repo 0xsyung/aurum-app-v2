@@ -246,6 +246,12 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
         throw new Error('Outcomes must be between 2 and 256')
       }
 
+      if (timeoutSecs < 60) {
+        throw new Error('Timeout must be at least 60 seconds')
+      }
+
+      setMessage(`Sending transaction... Question: "${questionText.slice(0, 50)}...", Outcomes: ${outcomeCount}, Timeout: ${timeoutSecs}s`)
+
       const hash = await walletClient.writeContract({
         address: MOCK_ORACLE_ADDRESS as `0x${string}`,
         abi: mockOracleAbi,
@@ -301,7 +307,7 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
             onChange={(e) => setOutcomes(e.target.value)}
             min="2"
             max="256"
-            disabled={loading || !account}
+            disabled={loading}
           />
           <small>Binary (Yes/No) = 2, Multiple choice = 3-256</small>
         </div>
@@ -314,7 +320,7 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
             onChange={(e) => setTimeoutSeconds(e.target.value)}
             min="60"
             placeholder="86400"
-            disabled={loading || !account}
+            disabled={loading}
           />
           <small>How long before oracle can be asked (default: 24 hours = 86400)</small>
         </div>
