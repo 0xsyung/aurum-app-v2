@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import './UserApp.css'
 
 interface Market {
@@ -173,7 +174,7 @@ export default function UserApp() {
           <div className="header-actions">
             <input type="text" placeholder="Search markets..." className="search-box" />
             <button className="wallet-btn">Connect Wallet</button>
-            <a href="/dev" className="dev-link">Dev Tools</a>
+            <Link to="/dev" className="dev-link">Dev Tools</Link>
           </div>
         </div>
       </header>
