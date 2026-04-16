@@ -28,6 +28,9 @@ const rpcUrl =
 const COLLATERAL_TOKEN_ADDRESS =
   import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.trim() || ''
 
+const MOCK_ORACLE_ADDRESS =
+  import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
+
 const conditionalTokensAbi = [
   {
     type: 'function',
@@ -289,7 +292,7 @@ function App() {
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
 
   const [questionText, setQuestionText] = useState('Will ETH be above 5000 by 2026-12-31?')
-  const [oracle, setOracle] = useState('')
+  const [oracle, setOracle] = useState(MOCK_ORACLE_ADDRESS)
   const [outcomeCount, setOutcomeCount] = useState('2')
   const [collateral, setCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [outcomeIndex, setOutcomeIndex] = useState('0')
@@ -299,7 +302,7 @@ function App() {
   const [derivedPositionId, setDerivedPositionId] = useState('')
 
   const [prepareQuestionId, setPrepareQuestionId] = useState('')
-  const [prepareOracle, setPrepareOracle] = useState('')
+  const [prepareOracle, setPrepareOracle] = useState(MOCK_ORACLE_ADDRESS)
   const [prepareOutcomes, setPrepareOutcomes] = useState('2')
 
   const [approveCollateral, setApproveCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
@@ -326,9 +329,7 @@ function App() {
   const [balanceCheckOutcomeIndexes, setBalanceCheckOutcomeIndexes] = useState('0,1')
   const [outcomeTokenBalances, setOutcomeTokenBalances] = useState<{ index: number; balance: string }[]>([])
 
-  const [mockOracleAddress, setMockOracleAddress] = useState(
-    import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
-  )
+  const [mockOracleAddress, setMockOracleAddress] = useState(MOCK_ORACLE_ADDRESS)
   const [oracleQuestionText, setOracleQuestionText] = useState('Will ETH be above 5000 by 2026-12-31?')
   const [oracleOutcomeCount, setOracleOutcomeCount] = useState('2')
   const [oracleSetQuestionId, setOracleSetQuestionId] = useState('')
@@ -966,7 +967,7 @@ function App() {
           <p><strong>Next step:</strong> Register a question (step 2)</p>
         </div>
         <div className="grid">
-          <label>MockOracle address<input value={mockOracleAddress} onChange={(e) => setMockOracleAddress(e.target.value)} placeholder="0x..." /></label>
+          <label>MockOracle address<input value={mockOracleAddress} onChange={(e) => { setMockOracleAddress(e.target.value); setOracle(e.target.value); setPrepareOracle(e.target.value); }} placeholder="0x..." /></label>
         </div>
         <div className="actions">
           <button onClick={loadOracleQuestions}>Load Questions</button>
