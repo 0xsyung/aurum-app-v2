@@ -1,167 +1,413 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { createPublicClient, http, createWalletClient, custom } from 'viem'
+import { sepolia } from 'viem/chains'
 import './UserApp.css'
 
-interface Market {
-  id: string
-  title: string
-  description?: string
-  outcomes: {
-    label: string
-    probability: number
-  }[]
-  volume: string
-  expiresAt?: string
-  category: string
-  isLive?: boolean
-  image?: string
+const rpcUrl =
+  import.meta.env.VITE_SEPOLIA_RPC_URL?.trim() ||
+  'https://ethereum-sepolia-rpc.publicnode.com'
+
+const MOCK_ORACLE_ADDRESS = import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
+const CONDITIONAL_TOKENS = '0x1d2607F5e52c4bc92891bE5932091b7D74FC719A'
+const COLLATERAL_TOKEN_ADDRESS = import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.trim() || ''
+
+const mockOracleAbi = [
+  {
+    type: 'function',
+    name: 'getQuestion',
+    stateMutability: 'view',
+    inputs: [{ name: 'questionId', type: 'bytes32' }],
+    outputs: [
+      { name: 'exists', type: 'bool' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+      { name: 'question', type: 'string' },
+      { name: 'createdAt', type: 'uint256' },
+      { name: 'answered', type: 'bool' },
+      { name: 'answeredAt', type: 'uint256' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getQuestionCount',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getQuestionIds',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'offset', type: 'uint256' },
+      { name: 'limit', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bytes32[]' }],
+  },
+] as const
+
+const conditionalTokensAbi = [
+  {
+    type: 'function',
+    name: 'getQuestionIdFromString',
+    stateMutability: 'pure',
+    inputs: [{ name: 'question', type: 'string' }],
+    outputs: [{ type: 'bytes32' }],
+  },
+  {
+    type: 'function',
+    name: 'getConditionId',
+    stateMutability: 'pure',
+    inputs: [
+      { name: 'oracle', type: 'address' },
+      { name: 'questionId', type: 'bytes32' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bytes32' }],
+  },
+  {
+    type: 'function',
+    name: 'getPositionId',
+    stateMutability: 'pure',
+    inputs: [
+      { name: 'collateralToken', type: 'address' },
+      { name: 'conditionId', type: 'bytes32' },
+      { name: 'outcomeIndex', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'prepareCondition',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'oracle', type: 'address' },
+      { name: 'questionId', type: 'bytes32' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'splitPosition',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'collateralToken', type: 'address' },
+      { name: 'conditionId', type: 'bytes32' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+] as const
+
+interface OracleQuestion {
+  id: `0x${string}`
+  text: string
+  outcomeSlotCount: number
+  answered: boolean
+  createdAt: number
+  answeredAt: number
 }
 
-const SAMPLE_MARKETS: Market[] = [
-  {
-    id: '1',
-    title: 'US x Iran permanent peace deal by June 30, 2026?',
-    outcomes: [
-      { label: 'Yes', probability: 70 },
-      { label: 'No', probability: 30 },
-    ],
-    volume: '$8M',
-    expiresAt: 'June 30, 2026',
-    category: 'Geopolitics',
-    isLive: true,
-  },
-  {
-    id: '2',
-    title: 'Bitcoin above 70K on April 16?',
-    outcomes: [
-      { label: 'Yes', probability: 100 },
-      { label: 'No', probability: 0 },
-    ],
-    volume: '$4M',
-    category: 'Crypto',
-    isLive: true,
-  },
-  {
-    id: '3',
-    title: '2026 NBA Champion',
-    outcomes: [
-      { label: 'Oklahoma City Thunder', probability: 44 },
-      { label: 'San Antonio Spurs', probability: 15 },
-      { label: 'Boston Celtics', probability: 12 },
-    ],
-    volume: '$273M',
-    expiresAt: 'June 16, 2026',
-    category: 'Sports',
-  },
-  {
-    id: '4',
-    title: '2026 FIFA World Cup Winner',
-    outcomes: [
-      { label: 'Spain', probability: 17 },
-      { label: 'France', probability: 16 },
-      { label: 'England', probability: 11 },
-    ],
-    volume: '$662M',
-    expiresAt: 'July 21, 2026',
-    category: 'Sports',
-  },
-  {
-    id: '5',
-    title: 'Presidential Election Winner 2028',
-    outcomes: [
-      { label: 'JD Vance', probability: 19 },
-      { label: 'Gavin Newsom', probability: 17 },
-      { label: 'Marco Rubio', probability: 12 },
-    ],
-    volume: '$531M',
-    expiresAt: 'November 5, 2028',
-    category: 'Politics',
-  },
-  {
-    id: '6',
-    title: 'What price will Bitcoin hit in April?',
-    outcomes: [
-      { label: '↑ 80,000', probability: 26 },
-      { label: '↓ 65,000', probability: 20 },
-      { label: '↓ 60,000', probability: 6 },
-    ],
-    volume: '$27M',
-    expiresAt: 'April 30, 2026',
-    category: 'Crypto',
-  },
-  {
-    id: '7',
-    title: 'Will the US confirm that aliens exist before 2027?',
-    outcomes: [
-      { label: 'Yes', probability: 18 },
-      { label: 'No', probability: 82 },
-    ],
-    volume: '$23M',
-    expiresAt: 'December 31, 2026',
-    category: 'Misc',
-  },
-  {
-    id: '8',
-    title: 'Will Israel x Hezbollah ceasefire last until June 30?',
-    outcomes: [
-      { label: 'Yes', probability: 87 },
-      { label: 'No', probability: 13 },
-    ],
-    volume: '$12M',
-    expiresAt: 'June 30, 2026',
-    category: 'Geopolitics',
-  },
-]
+const publicClient = createPublicClient({
+  chain: sepolia,
+  transport: http(rpcUrl),
+})
 
-const CATEGORIES = ['Trending', 'Politics', 'Sports', 'Crypto', 'Geopolitics', 'Misc']
-
-function MarketCard({ market }: { market: Market }) {
-  const topOutcome = market.outcomes[0]
-  const topProbability = topOutcome.probability
-
+function MarketCard({
+  market,
+  onTrade,
+}: {
+  market: OracleQuestion
+  onTrade: (market: OracleQuestion) => void
+}) {
   return (
     <div className="market-card">
-      {market.isLive && <div className="live-badge">LIVE</div>}
+      {!market.answered && <div className="live-badge">LIVE</div>}
       <div className="market-header">
-        <h3 className="market-title">{market.title}</h3>
-        {market.expiresAt && <span className="market-expiry">{market.expiresAt}</span>}
+        <h3 className="market-title">{market.text}</h3>
       </div>
 
       <div className="market-main">
         <div className="probability-display">
-          <div className="probability-number">{topProbability}%</div>
-          <div className="probability-label">{topOutcome.label}</div>
+          <div className="probability-number">{market.outcomeSlotCount}</div>
+          <div className="probability-label">Outcomes</div>
         </div>
 
         <div className="outcomes-preview">
-          {market.outcomes.slice(0, 2).map((outcome, idx) => (
-            <div key={idx} className="outcome-chip">
-              <span className="outcome-label">{outcome.label}</span>
-              <span className="outcome-prob">{outcome.probability}%</span>
-            </div>
-          ))}
-          {market.outcomes.length > 2 && (
-            <div className="outcome-chip more">+{market.outcomes.length - 2}</div>
-          )}
+          <div className="outcome-chip">
+            <span className="outcome-label">Status</span>
+            <span className="outcome-prob">{market.answered ? 'Resolved' : 'Active'}</span>
+          </div>
+          <div className="outcome-chip">
+            <span className="outcome-label">Created</span>
+            <span className="outcome-prob">{new Date(market.createdAt * 1000).toLocaleDateString()}</span>
+          </div>
         </div>
       </div>
 
       <div className="market-footer">
-        <span className="market-volume">{market.volume} Vol</span>
-        <span className="market-category">{market.category}</span>
+        <span className="market-category">Sepolia Testnet</span>
       </div>
 
-      <button className="market-trade-btn">Trade</button>
+      <button className="market-trade-btn" onClick={() => onTrade(market)}>
+        Trade
+      </button>
+    </div>
+  )
+}
+
+interface TradeModalProps {
+  market: OracleQuestion | null
+  onClose: () => void
+}
+
+function TradeModal({ market, onClose }: TradeModalProps) {
+  const [account, setAccount] = useState('')
+  const [amount, setAmount] = useState('1')
+  const [selectedOutcome, setSelectedOutcome] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  if (!market) return null
+
+  const connectWallet = async () => {
+    const provider = window.ethereum
+    if (!provider) {
+      setMessage('MetaMask or Rabby wallet required')
+      return
+    }
+
+    try {
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+      const addresses = await walletClient.requestAddresses()
+      setAccount(addresses[0])
+      setMessage('Wallet connected!')
+    } catch (error) {
+      setMessage((error as Error).message)
+    }
+  }
+
+  const handleTrade = async () => {
+    if (!account) {
+      setMessage('Please connect wallet first')
+      return
+    }
+
+    if (!MOCK_ORACLE_ADDRESS || !COLLATERAL_TOKEN_ADDRESS) {
+      setMessage('Missing configuration: VITE_MOCK_ORACLE_ADDRESS or VITE_COLLATERAL_TOKEN_ADDRESS')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Preparing trade...')
+
+    try {
+      const provider = window.ethereum
+      if (!provider) {
+        throw new Error('Wallet not available')
+      }
+
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+
+      const accountAddr = account as `0x${string}`
+
+      // Step 1: Get Question ID from ConditionalTokens
+      const questionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getQuestionIdFromString',
+        args: [market.text],
+      })
+
+      setMessage('Derived question ID')
+
+      // Step 2: Get Condition ID
+      const conditionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getConditionId',
+        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
+      })
+
+      setMessage('Derived condition ID')
+
+      // Step 3: Prepare condition if needed
+      try {
+        await publicClient.readContract({
+          address: CONDITIONAL_TOKENS,
+          abi: conditionalTokensAbi,
+          functionName: 'getPositionId',
+          args: [COLLATERAL_TOKEN_ADDRESS as `0x${string}`, conditionId, BigInt(selectedOutcome)],
+        })
+        setMessage('Condition exists, ready to split')
+      } catch {
+        setMessage('Preparing condition...')
+        // Prepare condition
+        const hash = await walletClient.writeContract({
+          address: CONDITIONAL_TOKENS,
+          abi: conditionalTokensAbi,
+          functionName: 'prepareCondition',
+          args: [
+            MOCK_ORACLE_ADDRESS as `0x${string}`,
+            questionId,
+            BigInt(market.outcomeSlotCount),
+          ],
+          account: accountAddr,
+          chain: sepolia,
+        })
+        setMessage(`Condition prepared: ${hash.slice(0, 10)}...`)
+      }
+
+      // Step 4: Split position
+      setMessage('Executing split position transaction...')
+      const splitHash = await walletClient.writeContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'splitPosition',
+        args: [
+          COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
+          conditionId,
+          BigInt(Math.floor(parseFloat(amount) * 1e18)),
+        ],
+        account: accountAddr,
+        chain: sepolia,
+      })
+
+      setMessage(`Trade submitted! Tx: ${splitHash.slice(0, 10)}...`)
+    } catch (error) {
+      setMessage(`Error: ${(error as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
+
+        <h2>Trade Market</h2>
+        <p className="market-description">{market.text}</p>
+
+        <div className="modal-section">
+          <label>Outcome</label>
+          <select value={selectedOutcome} onChange={(e) => setSelectedOutcome(Number(e.target.value))}>
+            {Array.from({ length: market.outcomeSlotCount }).map((_, i) => (
+              <option key={i} value={i}>
+                Outcome {i}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="modal-section">
+          <label>Amount (tokens)</label>
+          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} min="0.1" step="0.1" />
+        </div>
+
+        <div className="modal-section">
+          <label>Wallet: {account || 'Not connected'}</label>
+          {!account ? (
+            <button onClick={connectWallet} className="modal-btn primary">
+              Connect Wallet
+            </button>
+          ) : (
+            <button onClick={handleTrade} disabled={loading} className="modal-btn primary">
+              {loading ? 'Processing...' : 'Execute Trade'}
+            </button>
+          )}
+        </div>
+
+        {message && <div className={`modal-message ${message.includes('Error') ? 'error' : 'info'}`}>{message}</div>}
+      </div>
     </div>
   )
 }
 
 export default function UserApp() {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [markets, setMarkets] = useState<OracleQuestion[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedMarket, setSelectedMarket] = useState<OracleQuestion | null>(null)
 
-  const filteredMarkets = selectedCategory
-    ? SAMPLE_MARKETS.filter((m) => m.category === selectedCategory)
-    : SAMPLE_MARKETS
+  useEffect(() => {
+    loadMarkets()
+  }, [])
+
+  const loadMarkets = async () => {
+    if (!MOCK_ORACLE_ADDRESS) {
+      setError('VITE_MOCK_ORACLE_ADDRESS not configured')
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError('')
+
+      // Get total question count
+      const total = await publicClient.readContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getQuestionCount',
+      })
+
+      if (total === 0n) {
+        setMarkets([])
+        setLoading(false)
+        return
+      }
+
+      // Fetch latest 20 questions
+      const pageSize = 20n
+      const offset = total > pageSize ? total - pageSize : 0n
+
+      const ids = await publicClient.readContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getQuestionIds',
+        args: [offset, pageSize],
+      })
+
+      // Fetch details for each question
+      const questionDetails = await Promise.all(
+        [...ids].reverse().map(async (qid) => {
+          const details = await publicClient.readContract({
+            address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+            abi: mockOracleAbi,
+            functionName: 'getQuestion',
+            args: [qid],
+          })
+
+          const [, outcomeCount, text, createdAt, answered, answeredAt] = details
+
+          return {
+            id: qid,
+            text,
+            outcomeSlotCount: Number(outcomeCount),
+            answered,
+            createdAt: Number(createdAt),
+            answeredAt: Number(answeredAt),
+          }
+        })
+      )
+
+      setMarkets(questionDetails)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="user-app">
@@ -172,69 +418,64 @@ export default function UserApp() {
             <p className="tagline">Prediction Markets</p>
           </div>
           <div className="header-actions">
-            <input type="text" placeholder="Search markets..." className="search-box" />
-            <button className="wallet-btn">Connect Wallet</button>
-            <Link to="/dev" className="dev-link">Dev Tools</Link>
+            <button className="refresh-btn" onClick={loadMarkets} disabled={loading}>
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+            <Link to="/dev" className="dev-link">
+              Dev Tools
+            </Link>
           </div>
         </div>
       </header>
 
       <nav className="categories-nav">
         <div className="categories-scroll">
-          <button
-            className={`category-btn ${selectedCategory === null ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(null)}
-          >
-            All Markets
-          </button>
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
-              onClick={() => setSelectedCategory(cat)}
-            >
-              {cat}
-            </button>
-          ))}
+          <button className="category-btn active">All Markets</button>
         </div>
       </nav>
 
       <main className="markets-container">
         <div className="markets-header">
-          <h2>{selectedCategory ? `${selectedCategory} Markets` : 'All Markets'}</h2>
-          <div className="sort-options">
-            <select className="sort-select">
-              <option>Trending</option>
-              <option>Volume</option>
-              <option>Liquidity</option>
-              <option>Newest</option>
-            </select>
+          <h2>{loading ? 'Loading Markets...' : `Markets (${markets.length})`}</h2>
+          <div className="market-info">
+            <p className="network-info">Network: Sepolia Testnet</p>
+            {MOCK_ORACLE_ADDRESS && <p className="oracle-info">Oracle: {MOCK_ORACLE_ADDRESS.slice(0, 10)}...</p>}
           </div>
         </div>
 
-        <div className="markets-grid">
-          {filteredMarkets.map((market) => (
-            <MarketCard key={market.id} market={market} />
-          ))}
-        </div>
+        {error && <div className="error-message">{error}</div>}
 
-        {filteredMarkets.length === 0 && (
+        {loading && <div className="loading-state">Loading markets from MockOracle...</div>}
+
+        {!loading && markets.length === 0 && (
           <div className="empty-state">
-            <p>No markets found in this category</p>
+            <p>No markets found. Create your first question in the Dev Tools!</p>
+            <Link to="/dev" className="dev-link">
+              Go to Dev Tools
+            </Link>
           </div>
         )}
+
+        <div className="markets-grid">
+          {markets.map((market) => (
+            <MarketCard key={market.id} market={market} onTrade={setSelectedMarket} />
+          ))}
+        </div>
       </main>
 
       <footer className="user-footer">
         <div className="footer-content">
-          <p>&copy; 2026 Aurum Prediction Markets. All rights reserved.</p>
+          <p>&copy; 2026 Aurum Prediction Markets. Real blockchain interactions on Sepolia testnet.</p>
           <div className="footer-links">
-            <a href="#privacy">Privacy</a>
-            <a href="#terms">Terms</a>
-            <a href="#help">Help</a>
+            <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer">
+              Sepolia Explorer
+            </a>
+            <Link to="/dev">Developer Docs</Link>
           </div>
         </div>
       </footer>
+
+      <TradeModal market={selectedMarket} onClose={() => setSelectedMarket(null)} />
     </div>
   )
 }
