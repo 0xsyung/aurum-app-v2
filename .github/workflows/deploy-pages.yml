@@ -32,6 +32,7 @@ jobs:
         env:
           VITE_SEPOLIA_RPC_URL: ${{ vars.VITE_SEPOLIA_RPC_URL }}
           VITE_MOCK_ORACLE_ADDRESS: ${{ vars.VITE_MOCK_ORACLE_ADDRESS }}
+          VITE_COLLATERAL_TOKEN_ADDRESS: ${{ vars.VITE_COLLATERAL_TOKEN_ADDRESS }}
         run: npm run build
 
       - name: Deploy to gh-pages branch

@@ -155,10 +155,16 @@ Optional mock oracle address:
 VITE_MOCK_ORACLE_ADDRESS=0x9c7b5AcCb8B1B3AA342908075eE3479036F7aD15 npm run dev
 ```
 
+Optional collateral token address:
+```bash
+VITE_COLLATERAL_TOKEN_ADDRESS=0x... npm run dev
+```
+
 Production (GitHub Pages):
 - Optional repo variable: `VITE_SEPOLIA_RPC_URL`
 - Optional repo variable: `VITE_MOCK_ORACLE_ADDRESS`
-- Fallback if unset: `https://ethereum-sepolia-rpc.publicnode.com`
+- Optional repo variable: `VITE_COLLATERAL_TOKEN_ADDRESS`
+- Fallback if unset: `https://ethereum-sepolia-rpc.publicnode.com` (RPC), empty string (addresses)
 
 ## Build and Deploy
 
@@ -177,7 +183,10 @@ One-time repo setup:
 1. GitHub Settings → Pages
 2. Source: **Deploy from a branch**
 3. Branch: `gh-pages` and folder: `/ (root)`
-4. (Optional) Add repo variable `VITE_SEPOLIA_RPC_URL`
+4. (Optional) Add repo variables:
+   - `VITE_SEPOLIA_RPC_URL`: Custom Sepolia RPC endpoint
+   - `VITE_MOCK_ORACLE_ADDRESS`: Mock oracle contract address
+   - `VITE_COLLATERAL_TOKEN_ADDRESS`: Default collateral token address (auto-fills UI fields)
 
 ## Known Limitations
 

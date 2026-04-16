@@ -292,23 +292,23 @@ function App() {
   const [prepareOracle, setPrepareOracle] = useState('')
   const [prepareOutcomes, setPrepareOutcomes] = useState('2')
 
-  const [approveCollateral, setApproveCollateral] = useState('')
+  const [approveCollateral, setApproveCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [approveAmount, setApproveAmount] = useState('100')
   const [currentAllowance, setCurrentAllowance] = useState('')
 
-  const [splitCollateral, setSplitCollateral] = useState('')
+  const [splitCollateral, setSplitCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [splitConditionId, setSplitConditionId] = useState('')
   const [splitAmount, setSplitAmount] = useState('10')
   const [splitPositionIds, setSplitPositionIds] = useState<string[]>([])
 
-  const [mergeCollateral, setMergeCollateral] = useState('')
+  const [mergeCollateral, setMergeCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [mergeConditionId, setMergeConditionId] = useState('')
   const [mergeAmount, setMergeAmount] = useState('10')
 
   const [reportQuestionId, setReportQuestionId] = useState('')
   const [reportPayouts, setReportPayouts] = useState('1,0')
 
-  const [redeemCollateral, setRedeemCollateral] = useState('')
+  const [redeemCollateral, setRedeemCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [redeemConditionId, setRedeemConditionId] = useState('')
   const [redeemIndexes, setRedeemIndexes] = useState('0')
 
