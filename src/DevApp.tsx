@@ -9,7 +9,7 @@ import {
   parseUnits,
 } from 'viem'
 import { sepolia } from 'viem/chains'
-import './App.css'
+import './DevApp.css'
 
 declare global {
   interface Window {
