@@ -15,6 +15,17 @@ const COLLATERAL_TOKEN_ADDRESS = import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.
 const mockOracleAbi = [
   {
     type: 'function',
+    name: 'registerQuestion',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'questionText', type: 'string' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+      { name: 'timeout', type: 'uint32' },
+    ],
+    outputs: [{ name: 'questionId', type: 'bytes32' }],
+  },
+  {
+    type: 'function',
     name: 'getQuestion',
     stateMutability: 'view',
     inputs: [{ name: 'questionId', type: 'bytes32' }],
@@ -121,9 +132,11 @@ function MarketCard({
   market: OracleQuestion
   onTrade: (market: OracleQuestion) => void
 }) {
+  const isResolved = market.answered
+  
   return (
     <div className="market-card">
-      {!market.answered && <div className="live-badge">LIVE</div>}
+      {!isResolved && <div className="live-badge">LIVE</div>}
       <div className="market-header">
         <h3 className="market-title">{market.text}</h3>
       </div>
@@ -137,7 +150,7 @@ function MarketCard({
         <div className="outcomes-preview">
           <div className="outcome-chip">
             <span className="outcome-label">Status</span>
-            <span className="outcome-prob">{market.answered ? 'Resolved' : 'Active'}</span>
+            <span className="outcome-prob">{isResolved ? 'Resolved' : 'Active'}</span>
           </div>
           <div className="outcome-chip">
             <span className="outcome-label">Created</span>
@@ -150,9 +163,182 @@ function MarketCard({
         <span className="market-category">Sepolia Testnet</span>
       </div>
 
-      <button className="market-trade-btn" onClick={() => onTrade(market)}>
-        Trade
+      <button 
+        className="market-trade-btn" 
+        onClick={() => onTrade(market)}
+        disabled={isResolved}
+      >
+        {isResolved ? 'Market Resolved' : 'Trade'}
       </button>
+    </div>
+  )
+}
+
+interface CreateQuestionModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModalProps) {
+  const [questionText, setQuestionText] = useState('')
+  const [outcomes, setOutcomes] = useState('2')
+  const [timeoutSeconds, setTimeoutSeconds] = useState('86400')
+  const [account, setAccount] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  if (!isOpen) return null
+
+  const connectWallet = async () => {
+    const provider = window.ethereum
+    if (!provider) {
+      setMessage('MetaMask or Rabby wallet required')
+      return
+    }
+
+    try {
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+      const addresses = await walletClient.requestAddresses()
+      setAccount(addresses[0])
+      setMessage('✓ Wallet connected')
+    } catch (error) {
+      setMessage((error as Error).message)
+    }
+  }
+
+  const handleCreateQuestion = async () => {
+    if (!account) {
+      setMessage('Please connect wallet first')
+      return
+    }
+
+    if (!MOCK_ORACLE_ADDRESS) {
+      setMessage('Oracle address not configured')
+      return
+    }
+
+    if (!questionText.trim()) {
+      setMessage('Please enter a question')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Creating question...')
+
+    try {
+      const provider = window.ethereum
+      if (!provider) throw new Error('Wallet not available')
+
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+
+      const accountAddr = account as `0x${string}`
+      const outcomeCount = parseInt(outcomes)
+      const timeoutSecs = parseInt(timeoutSeconds)
+
+      if (outcomeCount < 2 || outcomeCount > 256) {
+        throw new Error('Outcomes must be between 2 and 256')
+      }
+
+      const hash = await walletClient.writeContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'registerQuestion',
+        args: [questionText.trim(), BigInt(outcomeCount), timeoutSecs],
+        account: accountAddr,
+        chain: sepolia,
+      })
+
+      setMessage(`✓ Question created! Tx: ${hash.slice(0, 10)}...`)
+      
+      globalThis.setTimeout(() => {
+        setQuestionText('')
+        setOutcomes('2')
+        setTimeoutSeconds('86400')
+        setMessage('')
+        onSuccess()
+        onClose()
+      }, 2000)
+    } catch (error) {
+      setMessage(`✗ ${(error as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
+
+        <h2>Create New Question</h2>
+        <p className="modal-hint">Ask a new prediction market question on Sepolia testnet</p>
+
+        <div className="modal-section">
+          <label>Question</label>
+          <textarea
+            value={questionText}
+            onChange={(e) => setQuestionText(e.target.value)}
+            placeholder="e.g., Will Bitcoin reach $100k by end of 2026?"
+            rows={3}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="modal-section">
+          <label>Number of Outcomes</label>
+          <input
+            type="number"
+            value={outcomes}
+            onChange={(e) => setOutcomes(e.target.value)}
+            min="2"
+            max="256"
+            disabled={loading || !account}
+          />
+          <small>Binary (Yes/No) = 2, Multiple choice = 3-256</small>
+        </div>
+
+        <div className="modal-section">
+          <label>Timeout (seconds)</label>
+          <input
+            type="number"
+            value={timeoutSeconds}
+            onChange={(e) => setTimeoutSeconds(e.target.value)}
+            min="60"
+            placeholder="86400"
+            disabled={loading || !account}
+          />
+          <small>How long before oracle can be asked (default: 24 hours = 86400)</small>
+        </div>
+
+        <div className="modal-section">
+          {!account ? (
+            <>
+              <button onClick={connectWallet} className="modal-btn primary">
+                Connect Wallet
+              </button>
+              <p className="modal-hint">You need to connect to create a question</p>
+            </>
+          ) : (
+            <>
+              <button onClick={handleCreateQuestion} disabled={loading || !questionText.trim()} className="modal-btn primary">
+                {loading ? 'Creating...' : 'Create Question'}
+              </button>
+              <p className="modal-hint">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+            </>
+          )}
+        </div>
+
+        {message && <div className={`modal-message ${message.includes('✗') ? 'error' : message.includes('✓') ? 'success' : 'info'}`}>{message}</div>}
+      </div>
     </div>
   )
 }
@@ -185,13 +371,13 @@ function TradeModal({ market, onClose }: TradeModalProps) {
       })
       const addresses = await walletClient.requestAddresses()
       setAccount(addresses[0])
-      setMessage('Wallet connected!')
+      setMessage('✓ Wallet connected')
     } catch (error) {
       setMessage((error as Error).message)
     }
   }
 
-  const handleTrade = async () => {
+  const handleBuyShares = async () => {
     if (!account) {
       setMessage('Please connect wallet first')
       return
@@ -203,7 +389,7 @@ function TradeModal({ market, onClose }: TradeModalProps) {
     }
 
     setLoading(true)
-    setMessage('Preparing trade...')
+    setMessage('Processing order...')
 
     try {
       const provider = window.ethereum
@@ -226,7 +412,7 @@ function TradeModal({ market, onClose }: TradeModalProps) {
         args: [market.text],
       })
 
-      setMessage('Derived question ID')
+      setMessage('Computing condition ID...')
 
       // Step 2: Get Condition ID
       const conditionId = await publicClient.readContract({
@@ -236,37 +422,8 @@ function TradeModal({ market, onClose }: TradeModalProps) {
         args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
       })
 
-      setMessage('Derived condition ID')
-
-      // Step 3: Prepare condition if needed
-      try {
-        await publicClient.readContract({
-          address: CONDITIONAL_TOKENS,
-          abi: conditionalTokensAbi,
-          functionName: 'getPositionId',
-          args: [COLLATERAL_TOKEN_ADDRESS as `0x${string}`, conditionId, BigInt(selectedOutcome)],
-        })
-        setMessage('Condition exists, ready to split')
-      } catch {
-        setMessage('Preparing condition...')
-        // Prepare condition
-        const hash = await walletClient.writeContract({
-          address: CONDITIONAL_TOKENS,
-          abi: conditionalTokensAbi,
-          functionName: 'prepareCondition',
-          args: [
-            MOCK_ORACLE_ADDRESS as `0x${string}`,
-            questionId,
-            BigInt(market.outcomeSlotCount),
-          ],
-          account: accountAddr,
-          chain: sepolia,
-        })
-        setMessage(`Condition prepared: ${hash.slice(0, 10)}...`)
-      }
-
-      // Step 4: Split position
-      setMessage('Executing split position transaction...')
+      // Step 3: Execute split position for this outcome
+      setMessage('Executing transaction...')
       const splitHash = await walletClient.writeContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
@@ -280,9 +437,12 @@ function TradeModal({ market, onClose }: TradeModalProps) {
         chain: sepolia,
       })
 
-      setMessage(`Trade submitted! Tx: ${splitHash.slice(0, 10)}...`)
+      setMessage(`✓ Order placed! Tx: ${splitHash.slice(0, 10)}...`)
+      globalThis.setTimeout(() => {
+        onClose()
+      }, 2000)
     } catch (error) {
-      setMessage(`Error: ${(error as Error).message}`)
+      setMessage(`✗ ${(error as Error).message}`)
     } finally {
       setLoading(false)
     }
@@ -295,39 +455,56 @@ function TradeModal({ market, onClose }: TradeModalProps) {
           ×
         </button>
 
-        <h2>Trade Market</h2>
+        <h2>Place Order</h2>
         <p className="market-description">{market.text}</p>
 
         <div className="modal-section">
-          <label>Outcome</label>
-          <select value={selectedOutcome} onChange={(e) => setSelectedOutcome(Number(e.target.value))}>
+          <label>Select Outcome</label>
+          <div className="outcome-buttons">
             {Array.from({ length: market.outcomeSlotCount }).map((_, i) => (
-              <option key={i} value={i}>
+              <button
+                key={i}
+                className={`outcome-btn ${selectedOutcome === i ? 'selected' : ''}`}
+                onClick={() => setSelectedOutcome(i)}
+              >
                 Outcome {i}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
 
         <div className="modal-section">
-          <label>Amount (tokens)</label>
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} min="0.1" step="0.1" />
+          <label>Amount to Invest (tokens)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0.1"
+            step="0.1"
+            placeholder="1.0"
+            disabled={!account || loading}
+          />
         </div>
 
         <div className="modal-section">
-          <label>Wallet: {account || 'Not connected'}</label>
           {!account ? (
-            <button onClick={connectWallet} className="modal-btn primary">
-              Connect Wallet
-            </button>
+            <>
+              <button onClick={connectWallet} className="modal-btn primary">
+                Connect Wallet
+              </button>
+              <p className="modal-hint">Connect MetaMask or Rabby to trade</p>
+            </>
           ) : (
-            <button onClick={handleTrade} disabled={loading} className="modal-btn primary">
-              {loading ? 'Processing...' : 'Execute Trade'}
-            </button>
+            <>
+              <button onClick={handleBuyShares} disabled={loading || !amount} className="modal-btn primary">
+                {loading ? 'Processing...' : 'Buy Shares'}
+              </button>
+              <p className="modal-hint">Buy {market.outcomeSlotCount > 2 ? 'shares for' : ''} Outcome {selectedOutcome}</p>
+            </>
           )}
         </div>
 
-        {message && <div className={`modal-message ${message.includes('Error') ? 'error' : 'info'}`}>{message}</div>}
+        {message && <div className={`modal-message ${message.includes('✗') ? 'error' : message.includes('✓') ? 'success' : 'info'}`}>{message}</div>}
       </div>
     </div>
   )
@@ -338,6 +515,7 @@ export default function UserApp() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedMarket, setSelectedMarket] = useState<OracleQuestion | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     loadMarkets()
@@ -421,6 +599,9 @@ export default function UserApp() {
             <button className="refresh-btn" onClick={loadMarkets} disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
+            <button className="create-btn" onClick={() => setShowCreateModal(true)}>
+              + New Question
+            </button>
             <Link to="/dev" className="dev-link">
               Dev Tools
             </Link>
@@ -449,10 +630,10 @@ export default function UserApp() {
 
         {!loading && markets.length === 0 && (
           <div className="empty-state">
-            <p>No markets found. Create your first question in the Dev Tools!</p>
-            <Link to="/dev" className="dev-link">
-              Go to Dev Tools
-            </Link>
+            <p>No markets found. Create your first question!</p>
+            <button onClick={() => setShowCreateModal(true)} className="empty-state-btn">
+              Create Question
+            </button>
           </div>
         )}
 
@@ -476,6 +657,7 @@ export default function UserApp() {
       </footer>
 
       <TradeModal market={selectedMarket} onClose={() => setSelectedMarket(null)} />
+      <CreateQuestionModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={loadMarkets} />
     </div>
   )
 }
