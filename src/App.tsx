@@ -454,6 +454,16 @@ function App() {
       setDerivedQuestionId(qid)
       setDerivedConditionId(cid)
       setDerivedPositionId(pid.toString())
+      
+      // Sync derived IDs to all corresponding fields
+      setPrepareQuestionId(qid)
+      setOracleSetQuestionId(qid)
+      setReportQuestionId(qid)
+      setOracleCheckQuestionId(qid)
+      setSplitConditionId(cid)
+      setMergeConditionId(cid)
+      setRedeemConditionId(cid)
+      
       logActivity('Derive IDs', 'success', 'Question, condition, and position IDs derived')
     } catch (error) {
       logActivity('Derive IDs', 'error', (error as Error).message)
@@ -671,9 +681,14 @@ function App() {
 
       setOracleSetQuestionId(predictedQid)
       setOracleCheckQuestionId(predictedQid)
+      setPrepareQuestionId(predictedQid)
 
       await waitAndSet(hash, 'Register Oracle Question')
       await loadOracleQuestions()
+
+      // Auto-derive IDs after question is registered
+      setOutcomeCount(oracleOutcomeCount)
+      setTimeout(() => deriveIds(), 500)
     } catch (error) {
       logActivity('Register Oracle Question', 'error', (error as Error).message)
     }
@@ -913,7 +928,7 @@ function App() {
           <p><strong>Next step:</strong> Derive IDs (step 3)</p>
         </div>
         <div className="grid">
-          <label>Question text<input value={oracleQuestionText} onChange={(e) => setOracleQuestionText(e.target.value)} /></label>
+          <label>Question text<input value={oracleQuestionText} onChange={(e) => { setOracleQuestionText(e.target.value); setQuestionText(e.target.value); }} /></label>
           <label>Outcome count<input value={oracleOutcomeCount} onChange={(e) => setOracleOutcomeCount(e.target.value)} /></label>
         </div>
         <button onClick={onRegisterOracleQuestion}>Register Question</button>
@@ -928,7 +943,7 @@ function App() {
           <p><strong>Next step:</strong> Prepare condition (step 4)</p>
         </div>
         <div className="grid">
-          <label>Question text<input value={questionText} onChange={(e) => setQuestionText(e.target.value)} /></label>
+          <label>Question text<input value={questionText} onChange={(e) => { setQuestionText(e.target.value); setOracleQuestionText(e.target.value); }} /></label>
           <label>Oracle address<input value={oracle} onChange={(e) => setOracle(e.target.value)} placeholder="0x..." /></label>
           <label>Outcome count<input value={outcomeCount} onChange={(e) => setOutcomeCount(e.target.value)} /></label>
           <label>Collateral token<input value={collateral} onChange={(e) => setCollateral(e.target.value)} placeholder="0x..." /></label>
