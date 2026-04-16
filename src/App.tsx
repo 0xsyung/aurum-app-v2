@@ -25,6 +25,9 @@ const rpcUrl =
   import.meta.env.VITE_SEPOLIA_RPC_URL?.trim() ||
   'https://ethereum-sepolia-rpc.publicnode.com'
 
+const COLLATERAL_TOKEN_ADDRESS =
+  import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.trim() || ''
+
 const conditionalTokensAbi = [
   {
     type: 'function',
@@ -278,7 +281,7 @@ function App() {
   const [questionText, setQuestionText] = useState('Will ETH be above 5000 by 2026-12-31?')
   const [oracle, setOracle] = useState('')
   const [outcomeCount, setOutcomeCount] = useState('2')
-  const [collateral, setCollateral] = useState('')
+  const [collateral, setCollateral] = useState(COLLATERAL_TOKEN_ADDRESS)
   const [outcomeIndex, setOutcomeIndex] = useState('0')
 
   const [derivedQuestionId, setDerivedQuestionId] = useState('')
