@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting...</title>
+  <script>
+    // Preserve the path for SPA routing
+    const path = window.location.pathname
+    // Only redirect 404s, not actual files
+    if (!path.includes('.') && !path.includes('/api/')) {
+      // Remove the repo name from the path
+      const decodedPath = decodeURIComponent(path).replace(/^\/aurum-app-v2/, '')
+      // Store the path in sessionStorage
+      sessionStorage.setItem('redirectPath', decodedPath || '/')
+      // Redirect to index.html
+      window.location.href = '/aurum-app-v2/'
+    }
+  </script>
+</head>
+<body>
+  <p>Redirecting...</p>
+</body>
+</html>
