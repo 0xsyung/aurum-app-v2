@@ -419,20 +419,30 @@ function SplitModal({ market, onClose }: TradeModalProps) {
   }
 
   const handleSplit = async () => {
+    console.log('[SPLIT] Starting split operation')
+    console.log('[SPLIT] Account:', account)
+    console.log('[SPLIT] Market:', market?.text)
+    console.log('[SPLIT] Amount:', amount)
+
     if (!account) {
       setMessage('Please connect wallet first')
       return
     }
 
     if (!COLLATERAL_TOKEN_ADDRESS) {
+      console.error('[SPLIT] COLLATERAL_TOKEN_ADDRESS is empty')
       setMessage('❌ VITE_COLLATERAL_TOKEN_ADDRESS not configured in environment')
       return
     }
+    console.log('[SPLIT] Collateral Token Address:', COLLATERAL_TOKEN_ADDRESS)
 
     if (!MOCK_ORACLE_ADDRESS) {
+      console.error('[SPLIT] MOCK_ORACLE_ADDRESS is empty')
       setMessage('❌ VITE_MOCK_ORACLE_ADDRESS not configured in environment')
       return
     }
+    console.log('[SPLIT] Mock Oracle Address:', MOCK_ORACLE_ADDRESS)
+    console.log('[SPLIT] Conditional Tokens Address:', CONDITIONAL_TOKENS)
 
     setLoading(true)
     setMessage('Processing split...')
@@ -440,31 +450,47 @@ function SplitModal({ market, onClose }: TradeModalProps) {
     try {
       const provider = window.ethereum
       if (!provider) throw new Error('Wallet not available')
+      console.log('[SPLIT] Ethereum provider available')
 
       const walletClient = createWalletClient({
         chain: sepolia,
         transport: custom(provider),
       })
+      console.log('[SPLIT] Wallet client created')
 
       const accountAddr = account as `0x${string}`
 
       // Get Question ID from ConditionalTokens
+      console.log('[SPLIT] Fetching question ID for:', market.text)
       const questionId = await publicClient.readContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
         functionName: 'getQuestionIdFromString',
         args: [market.text],
       })
+      console.log('[SPLIT] Question ID:', questionId)
 
       // Get Condition ID
+      console.log('[SPLIT] Computing condition ID...')
       const conditionId = await publicClient.readContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
         functionName: 'getConditionId',
         args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
       })
+      console.log('[SPLIT] Condition ID:', conditionId)
+
+      const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18))
+      console.log('[SPLIT] Amount in Wei:', amountWei.toString())
+      console.log('[SPLIT] Outcome Count:', market.outcomeSlotCount)
 
       // Execute split position
+      console.log('[SPLIT] Calling splitPosition with params:')
+      console.log('  - collateralToken:', COLLATERAL_TOKEN_ADDRESS)
+      console.log('  - conditionId:', conditionId)
+      console.log('  - amount:', amountWei.toString())
+      console.log('  - account:', accountAddr)
+
       const hash = await walletClient.writeContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
@@ -472,17 +498,21 @@ function SplitModal({ market, onClose }: TradeModalProps) {
         args: [
           COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
           conditionId,
-          BigInt(Math.floor(parseFloat(amount) * 1e18)),
+          amountWei,
         ],
         account: accountAddr,
         chain: sepolia,
       })
+      console.log('[SPLIT] Transaction hash:', hash)
 
       setMessage(`✓ Split successful! Tx: ${hash.slice(0, 10)}...`)
       globalThis.setTimeout(() => {
         onClose()
       }, 2000)
     } catch (error) {
+      console.error('[SPLIT] Error:', error)
+      console.error('[SPLIT] Error message:', (error as Error).message)
+      console.error('[SPLIT] Full error:', JSON.stringify(error, null, 2))
       setMessage(`✗ ${(error as Error).message}`)
     } finally {
       setLoading(false)
@@ -566,20 +596,30 @@ function MergeModal({ market, onClose }: TradeModalProps) {
   }
 
   const handleMerge = async () => {
+    console.log('[MERGE] Starting merge operation')
+    console.log('[MERGE] Account:', account)
+    console.log('[MERGE] Market:', market?.text)
+    console.log('[MERGE] Amount:', amount)
+
     if (!account) {
       setMessage('Please connect wallet first')
       return
     }
 
     if (!COLLATERAL_TOKEN_ADDRESS) {
+      console.error('[MERGE] COLLATERAL_TOKEN_ADDRESS is empty')
       setMessage('❌ VITE_COLLATERAL_TOKEN_ADDRESS not configured in environment')
       return
     }
+    console.log('[MERGE] Collateral Token Address:', COLLATERAL_TOKEN_ADDRESS)
 
     if (!MOCK_ORACLE_ADDRESS) {
+      console.error('[MERGE] MOCK_ORACLE_ADDRESS is empty')
       setMessage('❌ VITE_MOCK_ORACLE_ADDRESS not configured in environment')
       return
     }
+    console.log('[MERGE] Mock Oracle Address:', MOCK_ORACLE_ADDRESS)
+    console.log('[MERGE] Conditional Tokens Address:', CONDITIONAL_TOKENS)
 
     setLoading(true)
     setMessage('Processing merge...')
@@ -587,34 +627,52 @@ function MergeModal({ market, onClose }: TradeModalProps) {
     try {
       const provider = window.ethereum
       if (!provider) throw new Error('Wallet not available')
+      console.log('[MERGE] Ethereum provider available')
 
       const walletClient = createWalletClient({
         chain: sepolia,
         transport: custom(provider),
       })
+      console.log('[MERGE] Wallet client created')
 
       const accountAddr = account as `0x${string}`
 
       // Get Question ID from ConditionalTokens
+      console.log('[MERGE] Fetching question ID for:', market.text)
       const questionId = await publicClient.readContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
         functionName: 'getQuestionIdFromString',
         args: [market.text],
       })
+      console.log('[MERGE] Question ID:', questionId)
 
       // Get Condition ID
+      console.log('[MERGE] Computing condition ID...')
       const conditionId = await publicClient.readContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
         functionName: 'getConditionId',
         args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
       })
+      console.log('[MERGE] Condition ID:', conditionId)
 
       // Create partition array (all outcomes)
       const partition = Array.from({ length: market.outcomeSlotCount }, (_, i) => BigInt(2 ** i))
+      console.log('[MERGE] Partition:', partition.map(p => p.toString()))
+
+      const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18))
+      console.log('[MERGE] Amount in Wei:', amountWei.toString())
+      console.log('[MERGE] Outcome Count:', market.outcomeSlotCount)
 
       // Execute merge positions
+      console.log('[MERGE] Calling mergePositions with params:')
+      console.log('  - collateralToken:', COLLATERAL_TOKEN_ADDRESS)
+      console.log('  - conditionId:', conditionId)
+      console.log('  - partition:', partition.map(p => p.toString()))
+      console.log('  - amount:', amountWei.toString())
+      console.log('  - account:', accountAddr)
+
       const hash = await walletClient.writeContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
@@ -623,17 +681,21 @@ function MergeModal({ market, onClose }: TradeModalProps) {
           COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
           conditionId,
           partition,
-          BigInt(Math.floor(parseFloat(amount) * 1e18)),
+          amountWei,
         ],
         account: accountAddr,
         chain: sepolia,
       })
+      console.log('[MERGE] Transaction hash:', hash)
 
       setMessage(`✓ Merge successful! Tx: ${hash.slice(0, 10)}...`)
       globalThis.setTimeout(() => {
         onClose()
       }, 2000)
     } catch (error) {
+      console.error('[MERGE] Error:', error)
+      console.error('[MERGE] Error message:', (error as Error).message)
+      console.error('[MERGE] Full error:', JSON.stringify(error, null, 2))
       setMessage(`✗ ${(error as Error).message}`)
     } finally {
       setLoading(false)
