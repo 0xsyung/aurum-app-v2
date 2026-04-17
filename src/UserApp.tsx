@@ -425,7 +425,12 @@ function SplitModal({ market, onClose }: TradeModalProps) {
     }
 
     if (!COLLATERAL_TOKEN_ADDRESS) {
-      setMessage('Collateral token not configured')
+      setMessage('❌ VITE_COLLATERAL_TOKEN_ADDRESS not configured in environment')
+      return
+    }
+
+    if (!MOCK_ORACLE_ADDRESS) {
+      setMessage('❌ VITE_MOCK_ORACLE_ADDRESS not configured in environment')
       return
     }
 
@@ -567,7 +572,12 @@ function MergeModal({ market, onClose }: TradeModalProps) {
     }
 
     if (!COLLATERAL_TOKEN_ADDRESS) {
-      setMessage('Collateral token not configured')
+      setMessage('❌ VITE_COLLATERAL_TOKEN_ADDRESS not configured in environment')
+      return
+    }
+
+    if (!MOCK_ORACLE_ADDRESS) {
+      setMessage('❌ VITE_MOCK_ORACLE_ADDRESS not configured in environment')
       return
     }
 
