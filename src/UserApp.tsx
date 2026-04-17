@@ -18,11 +18,17 @@ const mockOracleAbi = [
     name: 'registerQuestion',
     stateMutability: 'nonpayable',
     inputs: [
-      { name: 'questionText', type: 'string' },
+      { name: 'question', type: 'string' },
       { name: 'outcomeSlotCount', type: 'uint256' },
-      { name: 'timeout', type: 'uint32' },
     ],
-    outputs: [{ name: 'questionId', type: 'bytes32' }],
+    outputs: [{ type: 'bytes32' }],
+  },
+  {
+    type: 'function',
+    name: 'computeQuestionIdFromString',
+    stateMutability: 'pure',
+    inputs: [{ name: 'question', type: 'string' }],
+    outputs: [{ type: 'bytes32' }],
   },
   {
     type: 'function',
@@ -183,7 +189,6 @@ interface CreateQuestionModalProps {
 function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModalProps) {
   const [questionText, setQuestionText] = useState('')
   const [outcomes, setOutcomes] = useState('2')
-  const [timeoutSeconds, setTimeoutSeconds] = useState('86400')
   const [account, setAccount] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -240,23 +245,18 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
 
       const accountAddr = account as `0x${string}`
       const outcomeCount = parseInt(outcomes)
-      const timeoutSecs = parseInt(timeoutSeconds)
 
       if (outcomeCount < 2 || outcomeCount > 256) {
         throw new Error('Outcomes must be between 2 and 256')
       }
 
-      if (timeoutSecs < 60) {
-        throw new Error('Timeout must be at least 60 seconds')
-      }
-
-      setMessage(`Sending transaction... Question: "${questionText.slice(0, 50)}...", Outcomes: ${outcomeCount}, Timeout: ${timeoutSecs}s`)
+      setMessage(`Sending transaction... Question: "${questionText.slice(0, 50)}...", Outcomes: ${outcomeCount}`)
 
       const hash = await walletClient.writeContract({
         address: MOCK_ORACLE_ADDRESS as `0x${string}`,
         abi: mockOracleAbi,
         functionName: 'registerQuestion',
-        args: [questionText.trim(), BigInt(outcomeCount), timeoutSecs],
+        args: [questionText.trim(), BigInt(outcomeCount)],
         account: accountAddr,
         chain: sepolia,
       })
@@ -266,7 +266,6 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
       globalThis.setTimeout(() => {
         setQuestionText('')
         setOutcomes('2')
-        setTimeoutSeconds('86400')
         setMessage('')
         onSuccess()
         onClose()
@@ -310,19 +309,6 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
             disabled={loading}
           />
           <small>Binary (Yes/No) = 2, Multiple choice = 3-256</small>
-        </div>
-
-        <div className="modal-section">
-          <label>Timeout (seconds)</label>
-          <input
-            type="number"
-            value={timeoutSeconds}
-            onChange={(e) => setTimeoutSeconds(e.target.value)}
-            min="60"
-            placeholder="86400"
-            disabled={loading}
-          />
-          <small>How long before oracle can be asked (default: 24 hours = 86400)</small>
         </div>
 
         <div className="modal-section">
