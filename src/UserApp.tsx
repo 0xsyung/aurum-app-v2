@@ -139,10 +139,12 @@ function MarketCard({
   onTrade: (market: OracleQuestion) => void
 }) {
   const isResolved = market.answered
+  const timeAgo = getTimeAgo(market.createdAt)
   
   return (
     <div className="market-card">
       {!isResolved && <div className="live-badge">LIVE</div>}
+      
       <div className="market-header">
         <h3 className="market-title">{market.text}</h3>
       </div>
@@ -152,32 +154,61 @@ function MarketCard({
           <div className="probability-number">{market.outcomeSlotCount}</div>
           <div className="probability-label">Outcomes</div>
         </div>
+      </div>
 
-        <div className="outcomes-preview">
-          <div className="outcome-chip">
-            <span className="outcome-label">Status</span>
-            <span className="outcome-prob">{isResolved ? 'Resolved' : 'Active'}</span>
+      <div className="market-info">
+        <div className="info-row">
+          <div className="info-item">
+            <span className="info-label">Status</span>
+            <span className={`info-value ${isResolved ? 'resolved' : 'active'}`}>
+              {isResolved ? 'Resolved' : 'Active'}
+            </span>
           </div>
-          <div className="outcome-chip">
-            <span className="outcome-label">Created</span>
-            <span className="outcome-prob">{new Date(market.createdAt * 1000).toLocaleDateString()}</span>
+          <div className="info-item">
+            <span className="info-label">Created</span>
+            <span className="info-value">{timeAgo}</span>
           </div>
         </div>
       </div>
 
       <div className="market-footer">
-        <span className="market-category">Sepolia Testnet</span>
+        <span className="market-network">Sepolia Testnet</span>
       </div>
 
-      <button 
-        className="market-trade-btn" 
-        onClick={() => onTrade(market)}
-        disabled={isResolved}
-      >
-        {isResolved ? 'Market Resolved' : 'Trade'}
-      </button>
+      <div className="market-actions">
+        <button 
+          className="action-btn split-btn" 
+          title="Split position"
+          disabled={isResolved}
+        >
+          Split
+        </button>
+        <button 
+          className="action-btn merge-btn" 
+          title="Merge positions"
+          disabled={isResolved}
+        >
+          Merge
+        </button>
+        <button 
+          className="action-btn trade-btn" 
+          onClick={() => onTrade(market)}
+          disabled={isResolved}
+        >
+          Trade
+        </button>
+      </div>
     </div>
   )
+}
+
+function getTimeAgo(timestamp: number): string {
+  const seconds = Math.floor(Date.now() / 1000) - timestamp
+  if (seconds < 60) return 'Just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  if (seconds < 2592000) return `${Math.floor(seconds / 86400)}d ago`
+  return new Date(timestamp * 1000).toLocaleDateString()
 }
 
 interface CreateQuestionModalProps {
