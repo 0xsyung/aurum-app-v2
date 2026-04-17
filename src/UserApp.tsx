@@ -9,6 +9,8 @@ const rpcUrl =
   'https://ethereum-sepolia-rpc.publicnode.com'
 
 const MOCK_ORACLE_ADDRESS = import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
+const COLLATERAL_TOKEN_ADDRESS = import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.trim() || ''
+const CONDITIONAL_TOKENS = '0x1d2607F5e52c4bc92891bE5932091b7D74FC719A'
 
 const mockOracleAbi = [
   {
@@ -62,7 +64,6 @@ const mockOracleAbi = [
 ] as const
 
 // Kept for future AMM integration
-/*
 const conditionalTokensAbi = [
   {
     type: 'function',
@@ -115,8 +116,19 @@ const conditionalTokensAbi = [
     ],
     outputs: [],
   },
+  {
+    type: 'function',
+    name: 'mergePositions',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'collateralToken', type: 'address' },
+      { name: 'conditionId', type: 'bytes32' },
+      { name: 'partition', type: 'uint256[]' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [],
+  },
 ] as const
-*/
 
 interface OracleQuestion {
   id: `0x${string}`
@@ -135,9 +147,13 @@ const publicClient = createPublicClient({
 function MarketCard({
   market,
   onTrade,
+  onSplit,
+  onMerge,
 }: {
   market: OracleQuestion
   onTrade: (market: OracleQuestion) => void
+  onSplit: (market: OracleQuestion) => void
+  onMerge: (market: OracleQuestion) => void
 }) {
   const isResolved = market.answered
   const timeAgo = getTimeAgo(market.createdAt)
@@ -179,6 +195,7 @@ function MarketCard({
       <div className="market-actions">
         <button 
           className="action-btn split-btn" 
+          onClick={() => onSplit(market)}
           title="Split position"
           disabled={isResolved}
         >
@@ -186,6 +203,7 @@ function MarketCard({
         </button>
         <button 
           className="action-btn merge-btn" 
+          onClick={() => onMerge(market)}
           title="Merge positions"
           disabled={isResolved}
         >
@@ -372,6 +390,294 @@ interface TradeModalProps {
   onClose: () => void
 }
 
+function SplitModal({ market, onClose }: TradeModalProps) {
+  const [account, setAccount] = useState('')
+  const [amount, setAmount] = useState('1')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  if (!market) return null
+
+  const connectWallet = async () => {
+    const provider = window.ethereum
+    if (!provider) {
+      setMessage('MetaMask or Rabby wallet required')
+      return
+    }
+
+    try {
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+      const addresses = await walletClient.requestAddresses()
+      setAccount(addresses[0])
+      setMessage('✓ Wallet connected')
+    } catch (error) {
+      setMessage((error as Error).message)
+    }
+  }
+
+  const handleSplit = async () => {
+    if (!account) {
+      setMessage('Please connect wallet first')
+      return
+    }
+
+    if (!COLLATERAL_TOKEN_ADDRESS) {
+      setMessage('Collateral token not configured')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Processing split...')
+
+    try {
+      const provider = window.ethereum
+      if (!provider) throw new Error('Wallet not available')
+
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+
+      const accountAddr = account as `0x${string}`
+
+      // Get Question ID from ConditionalTokens
+      const questionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getQuestionIdFromString',
+        args: [market.text],
+      })
+
+      // Get Condition ID
+      const conditionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getConditionId',
+        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
+      })
+
+      // Execute split position
+      const hash = await walletClient.writeContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'splitPosition',
+        args: [
+          COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
+          conditionId,
+          BigInt(Math.floor(parseFloat(amount) * 1e18)),
+        ],
+        account: accountAddr,
+        chain: sepolia,
+      })
+
+      setMessage(`✓ Split successful! Tx: ${hash.slice(0, 10)}...`)
+      globalThis.setTimeout(() => {
+        onClose()
+      }, 2000)
+    } catch (error) {
+      setMessage(`✗ ${(error as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
+
+        <h2>Split Position</h2>
+        <p className="market-description">{market.text}</p>
+
+        <div className="modal-section">
+          <label>Amount to Split (tokens)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0.1"
+            step="0.1"
+            placeholder="1.0"
+            disabled={!account}
+          />
+          <small>Amount of collateral to split into outcome shares</small>
+        </div>
+
+        <div className="modal-section">
+          {!account ? (
+            <>
+              <button onClick={connectWallet} className="modal-btn primary">
+                Connect Wallet
+              </button>
+              <p className="modal-hint">Connect wallet to split positions</p>
+            </>
+          ) : (
+            <>
+              <button onClick={handleSplit} disabled={loading || !amount} className="modal-btn primary">
+                {loading ? 'Processing...' : 'Split Position'}
+              </button>
+              <p className="modal-hint">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+            </>
+          )}
+        </div>
+
+        {message && <div className={`modal-message ${message.includes('✗') ? 'error' : message.includes('✓') ? 'success' : 'info'}`}>{message}</div>}
+      </div>
+    </div>
+  )
+}
+
+function MergeModal({ market, onClose }: TradeModalProps) {
+  const [account, setAccount] = useState('')
+  const [amount, setAmount] = useState('1')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  if (!market) return null
+
+  const connectWallet = async () => {
+    const provider = window.ethereum
+    if (!provider) {
+      setMessage('MetaMask or Rabby wallet required')
+      return
+    }
+
+    try {
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+      const addresses = await walletClient.requestAddresses()
+      setAccount(addresses[0])
+      setMessage('✓ Wallet connected')
+    } catch (error) {
+      setMessage((error as Error).message)
+    }
+  }
+
+  const handleMerge = async () => {
+    if (!account) {
+      setMessage('Please connect wallet first')
+      return
+    }
+
+    if (!COLLATERAL_TOKEN_ADDRESS) {
+      setMessage('Collateral token not configured')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Processing merge...')
+
+    try {
+      const provider = window.ethereum
+      if (!provider) throw new Error('Wallet not available')
+
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(provider),
+      })
+
+      const accountAddr = account as `0x${string}`
+
+      // Get Question ID from ConditionalTokens
+      const questionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getQuestionIdFromString',
+        args: [market.text],
+      })
+
+      // Get Condition ID
+      const conditionId = await publicClient.readContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'getConditionId',
+        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
+      })
+
+      // Create partition array (all outcomes)
+      const partition = Array.from({ length: market.outcomeSlotCount }, (_, i) => BigInt(2 ** i))
+
+      // Execute merge positions
+      const hash = await walletClient.writeContract({
+        address: CONDITIONAL_TOKENS,
+        abi: conditionalTokensAbi,
+        functionName: 'mergePositions',
+        args: [
+          COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
+          conditionId,
+          partition,
+          BigInt(Math.floor(parseFloat(amount) * 1e18)),
+        ],
+        account: accountAddr,
+        chain: sepolia,
+      })
+
+      setMessage(`✓ Merge successful! Tx: ${hash.slice(0, 10)}...`)
+      globalThis.setTimeout(() => {
+        onClose()
+      }, 2000)
+    } catch (error) {
+      setMessage(`✗ ${(error as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
+
+        <h2>Merge Positions</h2>
+        <p className="market-description">{market.text}</p>
+
+        <div className="modal-section">
+          <label>Amount to Merge (tokens)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0.1"
+            step="0.1"
+            placeholder="1.0"
+            disabled={!account}
+          />
+          <small>Amount of outcome shares to merge back to collateral</small>
+        </div>
+
+        <div className="modal-section">
+          {!account ? (
+            <>
+              <button onClick={connectWallet} className="modal-btn primary">
+                Connect Wallet
+              </button>
+              <p className="modal-hint">Connect wallet to merge positions</p>
+            </>
+          ) : (
+            <>
+              <button onClick={handleMerge} disabled={loading || !amount} className="modal-btn primary">
+                {loading ? 'Processing...' : 'Merge Positions'}
+              </button>
+              <p className="modal-hint">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+            </>
+          )}
+        </div>
+
+        {message && <div className={`modal-message ${message.includes('✗') ? 'error' : message.includes('✓') ? 'success' : 'info'}`}>{message}</div>}
+      </div>
+    </div>
+  )
+}
+
 function TradeModal({ market, onClose }: TradeModalProps) {
   const [account, setAccount] = useState('')
   const [amount, setAmount] = useState('1')
@@ -476,6 +782,8 @@ export default function UserApp() {
   const [error, setError] = useState('')
   const [selectedMarket, setSelectedMarket] = useState<OracleQuestion | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [splitMarket, setSplitMarket] = useState<OracleQuestion | null>(null)
+  const [mergeMarket, setMergeMarket] = useState<OracleQuestion | null>(null)
 
   useEffect(() => {
     loadMarkets()
@@ -599,7 +907,13 @@ export default function UserApp() {
 
         <div className="markets-grid">
           {markets.map((market) => (
-            <MarketCard key={market.id} market={market} onTrade={setSelectedMarket} />
+            <MarketCard 
+              key={market.id} 
+              market={market} 
+              onTrade={setSelectedMarket}
+              onSplit={setSplitMarket}
+              onMerge={setMergeMarket}
+            />
           ))}
         </div>
       </main>
@@ -617,6 +931,8 @@ export default function UserApp() {
       </footer>
 
       <TradeModal market={selectedMarket} onClose={() => setSelectedMarket(null)} />
+      <SplitModal market={splitMarket} onClose={() => setSplitMarket(null)} />
+      <MergeModal market={mergeMarket} onClose={() => setMergeMarket(null)} />
       <CreateQuestionModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={loadMarkets} />
     </div>
   )
