@@ -9,8 +9,6 @@ const rpcUrl =
   'https://ethereum-sepolia-rpc.publicnode.com'
 
 const MOCK_ORACLE_ADDRESS = import.meta.env.VITE_MOCK_ORACLE_ADDRESS?.trim() || ''
-const CONDITIONAL_TOKENS = '0x1d2607F5e52c4bc92891bE5932091b7D74FC719A'
-const COLLATERAL_TOKEN_ADDRESS = import.meta.env.VITE_COLLATERAL_TOKEN_ADDRESS?.trim() || ''
 
 const mockOracleAbi = [
   {
@@ -63,6 +61,8 @@ const mockOracleAbi = [
   },
 ] as const
 
+// Kept for future AMM integration
+/*
 const conditionalTokensAbi = [
   {
     type: 'function',
@@ -116,6 +116,7 @@ const conditionalTokensAbi = [
     outputs: [],
   },
 ] as const
+*/
 
 interface OracleQuestion {
   id: `0x${string}`
@@ -375,7 +376,6 @@ function TradeModal({ market, onClose }: TradeModalProps) {
   const [account, setAccount] = useState('')
   const [amount, setAmount] = useState('1')
   const [selectedOutcome, setSelectedOutcome] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
   if (!market) return null
@@ -401,74 +401,11 @@ function TradeModal({ market, onClose }: TradeModalProps) {
   }
 
   const handleBuyShares = async () => {
-    if (!account) {
-      setMessage('Please connect wallet first')
-      return
-    }
-
-    if (!MOCK_ORACLE_ADDRESS || !COLLATERAL_TOKEN_ADDRESS) {
-      setMessage('Missing configuration: VITE_MOCK_ORACLE_ADDRESS or VITE_COLLATERAL_TOKEN_ADDRESS')
-      return
-    }
-
-    setLoading(true)
-    setMessage('Processing order...')
-
-    try {
-      const provider = window.ethereum
-      if (!provider) {
-        throw new Error('Wallet not available')
-      }
-
-      const walletClient = createWalletClient({
-        chain: sepolia,
-        transport: custom(provider),
-      })
-
-      const accountAddr = account as `0x${string}`
-
-      // Step 1: Get Question ID from ConditionalTokens
-      const questionId = await publicClient.readContract({
-        address: CONDITIONAL_TOKENS,
-        abi: conditionalTokensAbi,
-        functionName: 'getQuestionIdFromString',
-        args: [market.text],
-      })
-
-      setMessage('Computing condition ID...')
-
-      // Step 2: Get Condition ID
-      const conditionId = await publicClient.readContract({
-        address: CONDITIONAL_TOKENS,
-        abi: conditionalTokensAbi,
-        functionName: 'getConditionId',
-        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(market.outcomeSlotCount)],
-      })
-
-      // Step 3: Execute split position for this outcome
-      setMessage('Executing transaction...')
-      const splitHash = await walletClient.writeContract({
-        address: CONDITIONAL_TOKENS,
-        abi: conditionalTokensAbi,
-        functionName: 'splitPosition',
-        args: [
-          COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
-          conditionId,
-          BigInt(Math.floor(parseFloat(amount) * 1e18)),
-        ],
-        account: accountAddr,
-        chain: sepolia,
-      })
-
-      setMessage(`✓ Order placed! Tx: ${splitHash.slice(0, 10)}...`)
-      globalThis.setTimeout(() => {
-        onClose()
-      }, 2000)
-    } catch (error) {
-      setMessage(`✗ ${(error as Error).message}`)
-    } finally {
-      setLoading(false)
-    }
+    // AMM integration coming soon
+    setMessage('🔄 AMM integration coming soon! This will execute swaps through our decentralized market maker.')
+    globalThis.setTimeout(() => {
+      setMessage('')
+    }, 4000)
   }
 
   return (
@@ -505,7 +442,7 @@ function TradeModal({ market, onClose }: TradeModalProps) {
             min="0.1"
             step="0.1"
             placeholder="1.0"
-            disabled={!account || loading}
+            disabled={!account}
           />
         </div>
 
@@ -519,10 +456,10 @@ function TradeModal({ market, onClose }: TradeModalProps) {
             </>
           ) : (
             <>
-              <button onClick={handleBuyShares} disabled={loading || !amount} className="modal-btn primary">
-                {loading ? 'Processing...' : 'Buy Shares'}
+              <button onClick={handleBuyShares} className="modal-btn primary coming-soon">
+                Coming Soon: Buy via AMM
               </button>
-              <p className="modal-hint">Buy {market.outcomeSlotCount > 2 ? 'shares for' : ''} Outcome {selectedOutcome}</p>
+              <p className="modal-hint">Automated Market Maker integration in development</p>
             </>
           )}
         </div>

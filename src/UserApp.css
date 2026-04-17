@@ -863,6 +863,19 @@
   cursor: not-allowed;
 }
 
+.modal-btn.coming-soon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: white;
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+.modal-btn.coming-soon:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(139, 92, 246, 0.4);
+  opacity: 1;
+}
+
 .modal-message {
   margin-top: 1rem;
   padding: 1rem;
