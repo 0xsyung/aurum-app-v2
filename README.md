@@ -63,13 +63,18 @@ Runtime stack:
 The UI is structured in the same order users typically operate contracts:
 1. Derive IDs (question/condition/position)
 2. Prepare condition
-3. Approve collateral
-4. Split
-5. Merge
-6. Report payouts
-7. Redeem
+3. Split (automatically approves collateral before splitting)
+4. Merge
+5. Report payouts
+6. Redeem
 
 This reduces operator error by matching contract dependency order.
+
+**Note on Split Operation:** When splitting positions, the app automatically handles the ERC20 approval in a two-step process:
+1. First transaction: Approve ConditionalTokens contract to spend collateral tokens
+2. Second transaction: Execute the splitPosition call
+
+Users will see two MetaMask prompts for each split operation.
 
 ## Design Decisions and Rationale
 

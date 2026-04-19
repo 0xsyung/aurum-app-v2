@@ -484,13 +484,43 @@ function SplitModal({ market, onClose }: TradeModalProps) {
       console.log('[SPLIT] Amount in Wei:', amountWei.toString())
       console.log('[SPLIT] Outcome Count:', market.outcomeSlotCount)
 
-      // Execute split position
+      // Step 1: Approve ConditionalTokens contract to spend collateral
+      console.log('[SPLIT] Approving ConditionalTokens to spend collateral...')
+      setMessage('Requesting approval...')
+      const approveHash = await walletClient.writeContract({
+        address: COLLATERAL_TOKEN_ADDRESS as `0x${string}`,
+        abi: [
+          {
+            type: 'function',
+            name: 'approve',
+            stateMutability: 'nonpayable',
+            inputs: [
+              { name: 'spender', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+            ],
+            outputs: [{ type: 'bool' }],
+          },
+        ] as const,
+        functionName: 'approve',
+        args: [CONDITIONAL_TOKENS as `0x${string}`, amountWei],
+        account: accountAddr,
+        chain: sepolia,
+      })
+      console.log('[SPLIT] Approval transaction hash:', approveHash)
+
+      // Wait for approval confirmation
+      setMessage('Waiting for approval confirmation...')
+      await publicClient.waitForTransactionReceipt({ hash: approveHash })
+      console.log('[SPLIT] Approval confirmed')
+
+      // Step 2: Execute split position
       console.log('[SPLIT] Calling splitPosition with params:')
       console.log('  - collateralToken:', COLLATERAL_TOKEN_ADDRESS)
       console.log('  - conditionId:', conditionId)
       console.log('  - amount:', amountWei.toString())
       console.log('  - account:', accountAddr)
 
+      setMessage('Splitting position...')
       const hash = await walletClient.writeContract({
         address: CONDITIONAL_TOKENS,
         abi: conditionalTokensAbi,
