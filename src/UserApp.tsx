@@ -300,9 +300,9 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
         throw new Error('Outcomes must be between 2 and 256')
       }
 
-      setMessage(`Sending transaction... Question: "${questionText.slice(0, 50)}...", Outcomes: ${outcomeCount}`)
-
-      const hash = await walletClient.writeContract({
+      // Step 1: Register question with oracle
+      setMessage('Registering question...')
+      const registerHash = await walletClient.writeContract({
         address: MOCK_ORACLE_ADDRESS as `0x${string}`,
         abi: mockOracleAbi,
         functionName: 'registerQuestion',
@@ -311,8 +311,31 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
         chain: sepolia,
       })
 
-      setMessage(`✓ Question created! Tx: ${hash.slice(0, 10)}...`)
-      
+      // Wait for registration to complete
+      setMessage('Waiting for registration confirmation...')
+      await publicClient.waitForTransactionReceipt({ hash: registerHash })
+
+      // Step 2: Get question ID
+      const questionId = await publicClient.readContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'computeQuestionIdFromString',
+        args: [questionText.trim()],
+      })
+
+      // Step 3: Prepare condition on ConditionalTokens
+      setMessage('Preparing condition...')
+      const prepareHash = await walletClient.writeContract({
+        address: CONDITIONAL_TOKENS as `0x${string}`,
+        abi: conditionalTokensAbi,
+        functionName: 'prepareCondition',
+        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(outcomeCount)],
+        account: accountAddr,
+        chain: sepolia,
+      })
+
+      setMessage(`✓ Question created and prepared! Tx: ${prepareHash.slice(0, 10)}...`)
+
       globalThis.setTimeout(() => {
         setQuestionText('')
         setOutcomes('2')

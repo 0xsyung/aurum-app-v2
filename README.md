@@ -8,7 +8,7 @@ This app is an operator console for the current `aurum-contracts-v2` state.
 
 Implemented contract interactions:
 - MockOracle flows:
-  - register question
+  - register question (automatically calls `prepareCondition` on ConditionalTokens)
   - set/override answer vector
   - submit answer to `ConditionalTokens`
   - inspect one question (`getQuestion`, `getAnswer`)
@@ -18,13 +18,13 @@ Implemented contract interactions:
   - `getConditionId`
   - `getPositionId`
 - Write actions:
-  - `prepareCondition`
-  - `splitPosition`
+  - `prepareCondition` (called automatically during question creation)
+  - `splitPosition` (automatically approves collateral before splitting)
   - `mergePositions`
   - `reportPayouts`
   - `redeemPositions`
 - ERC20 helper flow:
-  - `approve(spender, amount)`
+  - `approve(spender, amount)` (called automatically during split operations)
   - `allowance(owner, spender)` readback
   - `decimals()` read for unit conversion
 
@@ -60,21 +60,27 @@ Runtime stack:
 
 ## Interaction Design
 
-The UI is structured in the same order users typically operate contracts:
-1. Derive IDs (question/condition/position)
-2. Prepare condition
-3. Split (automatically approves collateral before splitting)
-4. Merge
-5. Report payouts
-6. Redeem
+The UI is structured to minimize operator error by automating required contract dependencies:
 
-This reduces operator error by matching contract dependency order.
+1. **Create Question**: Automatically registers question with MockOracle and prepares condition on ConditionalTokens (2 transactions)
+2. **Split Position**: Automatically approves collateral and splits position (2 transactions)
+3. **Merge Position**: Combines outcome tokens back into collateral (1 transaction)
+4. **Report Payouts**: Oracle reports resolution outcome (1 transaction)
+5. **Redeem Position**: Winners redeem positions for collateral (1 transaction)
 
-**Note on Split Operation:** When splitting positions, the app automatically handles the ERC20 approval in a two-step process:
-1. First transaction: Approve ConditionalTokens contract to spend collateral tokens
-2. Second transaction: Execute the splitPosition call
+### Transaction Details
 
-Users will see two MetaMask prompts for each split operation.
+**Creating a Question:**
+- Transaction 1: Register question with MockOracle
+- Transaction 2: Prepare condition on ConditionalTokens
+- Users see 2 MetaMask prompts
+
+**Splitting a Position:**
+- Transaction 1: Approve ConditionalTokens to spend collateral tokens
+- Transaction 2: Execute splitPosition to receive outcome tokens
+- Users see 2 MetaMask prompts
+
+This automated flow prevents common errors like forgetting to prepare conditions or approve tokens before operations.
 
 ## Design Decisions and Rationale
 
@@ -128,10 +134,12 @@ Why:
 ### 6) Operator-first UX over retail polish
 Decision:
 - Single-page panel layout with direct controls/status
+- Automate multi-step contract operations (prepareCondition, approve)
 
 Why:
 - Target users are dev/operators validating contract behavior
 - Prioritize clarity and transaction traceability over marketing UX
+- Reduce operator error by handling contract dependencies automatically
 
 ### 7) GitHub Pages-native deployment path
 Decision:
