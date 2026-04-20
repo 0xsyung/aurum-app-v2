@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import UserApp from './UserApp'
 import DevApp from './DevApp'
+import AdminApp from './AdminApp'
 
 function AppContent() {
   const navigate = useNavigate()
@@ -18,6 +19,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<UserApp />} />
+      <Route path="/admin" element={<AdminApp />} />
       <Route path="/dev" element={<DevApp />} />
     </Routes>
   )

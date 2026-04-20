@@ -61,6 +61,49 @@ const mockOracleAbi = [
     ],
     outputs: [{ type: 'bytes32[]' }],
   },
+  {
+    type: 'function',
+    name: 'proposeQuestion',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'question', type: 'string' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getProposalCount',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getProposalIds',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'offset', type: 'uint256' },
+      { name: 'limit', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256[]' }],
+  },
+  {
+    type: 'function',
+    name: 'getProposal',
+    stateMutability: 'view',
+    inputs: [{ name: 'proposalId', type: 'uint256' }],
+    outputs: [
+      { name: 'id', type: 'uint256' },
+      { name: 'proposer', type: 'address' },
+      { name: 'question', type: 'string' },
+      { name: 'outcomeSlotCount', type: 'uint256' },
+      { name: 'status', type: 'uint8' },
+      { name: 'createdAt', type: 'uint256' },
+      { name: 'processedAt', type: 'uint256' },
+      { name: 'rejectionReason', type: 'string' },
+    ],
+  },
 ] as const
 
 // Kept for future AMM integration
@@ -139,6 +182,17 @@ interface OracleQuestion {
   answeredAt: number
 }
 
+interface Proposal {
+  id: number
+  proposer: string
+  question: string
+  outcomeSlotCount: number
+  status: 0 | 1 | 2 // 0=Pending, 1=Approved, 2=Rejected
+  createdAt: number
+  processedAt: number
+  rejectionReason: string
+}
+
 const publicClient = createPublicClient({
   chain: sepolia,
   transport: http(rpcUrl),
@@ -157,11 +211,11 @@ function MarketCard({
 }) {
   const isResolved = market.answered
   const timeAgo = getTimeAgo(market.createdAt)
-  
+
   return (
     <div className="market-card">
       {!isResolved && <div className="live-badge">LIVE</div>}
-      
+
       <div className="market-header">
         <h3 className="market-title">{market.text}</h3>
       </div>
@@ -193,29 +247,77 @@ function MarketCard({
       </div>
 
       <div className="market-actions">
-        <button 
-          className="action-btn split-btn" 
+        <button
+          className="action-btn split-btn"
           onClick={() => onSplit(market)}
           title="Split position"
           disabled={isResolved}
         >
           Split
         </button>
-        <button 
-          className="action-btn merge-btn" 
+        <button
+          className="action-btn merge-btn"
           onClick={() => onMerge(market)}
           title="Merge positions"
           disabled={isResolved}
         >
           Merge
         </button>
-        <button 
-          className="action-btn trade-btn" 
+        <button
+          className="action-btn trade-btn"
           onClick={() => onTrade(market)}
           disabled={isResolved}
         >
           Trade
         </button>
+      </div>
+    </div>
+  )
+}
+
+function ProposalCard({ proposal }: { proposal: Proposal }) {
+  const timeAgo = getTimeAgo(proposal.createdAt)
+  const statusText = proposal.status === 0 ? 'Pending' : proposal.status === 1 ? 'Approved' : 'Rejected'
+  const statusClass = proposal.status === 0 ? 'status-pending' : proposal.status === 1 ? 'status-approved' : 'status-rejected'
+
+  return (
+    <div className="market-card">
+      <div className={`status-badge ${statusClass}`}>{statusText}</div>
+
+      <div className="market-header">
+        <h3 className="market-title">{proposal.question}</h3>
+      </div>
+
+      <div className="market-main">
+        <div className="probability-display">
+          <div className="probability-number">{proposal.outcomeSlotCount}</div>
+          <div className="probability-label">Outcomes</div>
+        </div>
+      </div>
+
+      <div className="market-info">
+        <div className="info-row">
+          <div className="info-item">
+            <span className="info-label">Proposer</span>
+            <span className="info-value">{proposal.proposer.slice(0, 6)}...{proposal.proposer.slice(-4)}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Created</span>
+            <span className="info-value">{timeAgo}</span>
+          </div>
+        </div>
+        {proposal.status === 2 && proposal.rejectionReason && (
+          <div className="info-row">
+            <div className="info-item" style={{ width: '100%' }}>
+              <span className="info-label">Rejection Reason</span>
+              <span className="info-value rejection-reason">{proposal.rejectionReason}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="market-footer">
+        <span className="market-network">Sepolia Testnet</span>
       </div>
     </div>
   )
@@ -282,7 +384,7 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
     }
 
     setLoading(true)
-    setMessage('Creating question...')
+    setMessage('Submitting proposal...')
 
     try {
       const provider = window.ethereum
@@ -300,41 +402,22 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
         throw new Error('Outcomes must be between 2 and 256')
       }
 
-      // Step 1: Register question with oracle
-      setMessage('Registering question...')
-      const registerHash = await walletClient.writeContract({
+      // Submit proposal (permissionless)
+      setMessage('Submitting proposal...')
+      const proposalHash = await walletClient.writeContract({
         address: MOCK_ORACLE_ADDRESS as `0x${string}`,
         abi: mockOracleAbi,
-        functionName: 'registerQuestion',
+        functionName: 'proposeQuestion',
         args: [questionText.trim(), BigInt(outcomeCount)],
         account: accountAddr,
         chain: sepolia,
       })
 
-      // Wait for registration to complete
-      setMessage('Waiting for registration confirmation...')
-      await publicClient.waitForTransactionReceipt({ hash: registerHash })
+      // Wait for proposal submission to complete
+      setMessage('Waiting for confirmation...')
+      await publicClient.waitForTransactionReceipt({ hash: proposalHash })
 
-      // Step 2: Get question ID
-      const questionId = await publicClient.readContract({
-        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
-        abi: mockOracleAbi,
-        functionName: 'computeQuestionIdFromString',
-        args: [questionText.trim()],
-      })
-
-      // Step 3: Prepare condition on ConditionalTokens
-      setMessage('Preparing condition...')
-      const prepareHash = await walletClient.writeContract({
-        address: CONDITIONAL_TOKENS as `0x${string}`,
-        abi: conditionalTokensAbi,
-        functionName: 'prepareCondition',
-        args: [MOCK_ORACLE_ADDRESS as `0x${string}`, questionId, BigInt(outcomeCount)],
-        account: accountAddr,
-        chain: sepolia,
-      })
-
-      setMessage(`✓ Question created and prepared! Tx: ${prepareHash.slice(0, 10)}...`)
+      setMessage('✓ Proposal submitted! Waiting for admin approval.')
 
       globalThis.setTimeout(() => {
         setQuestionText('')
@@ -357,8 +440,8 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
           ×
         </button>
 
-        <h2>Create New Question</h2>
-        <p className="modal-hint">Ask a new prediction market question on Sepolia testnet</p>
+        <h2>Propose New Question</h2>
+        <p className="modal-hint">Submit a question proposal for admin review</p>
 
         <div className="modal-section">
           <label>Question</label>
@@ -390,12 +473,12 @@ function CreateQuestionModal({ isOpen, onClose, onSuccess }: CreateQuestionModal
               <button onClick={connectWallet} className="modal-btn primary">
                 Connect Wallet
               </button>
-              <p className="modal-hint">You need to connect to create a question</p>
+              <p className="modal-hint">You need to connect to propose a question</p>
             </>
           ) : (
             <>
               <button onClick={handleCreateQuestion} disabled={loading || !questionText.trim()} className="modal-btn primary">
-                {loading ? 'Creating...' : 'Create Question'}
+                {loading ? 'Submitting...' : 'Propose Question'}
               </button>
               <p className="modal-hint">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
             </>
@@ -903,6 +986,8 @@ function TradeModal({ market, onClose }: TradeModalProps) {
 
 export default function UserApp() {
   const [markets, setMarkets] = useState<OracleQuestion[]>([])
+  const [proposals, setProposals] = useState<Proposal[]>([])
+  const [activeTab, setActiveTab] = useState<'markets' | 'proposals'>('markets')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedMarket, setSelectedMarket] = useState<OracleQuestion | null>(null)
@@ -912,6 +997,7 @@ export default function UserApp() {
 
   useEffect(() => {
     loadMarkets()
+    loadProposals()
   }, [])
 
   const loadMarkets = async () => {
@@ -980,6 +1066,66 @@ export default function UserApp() {
     }
   }
 
+  const loadProposals = async () => {
+    if (!MOCK_ORACLE_ADDRESS) {
+      return
+    }
+
+    try {
+      // Get total proposal count
+      const total = await publicClient.readContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getProposalCount',
+      })
+
+      if (total === 0n) {
+        setProposals([])
+        return
+      }
+
+      // Fetch latest 20 proposals
+      const pageSize = 20n
+      const offset = total > pageSize ? total - pageSize : 0n
+
+      const ids = await publicClient.readContract({
+        address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+        abi: mockOracleAbi,
+        functionName: 'getProposalIds',
+        args: [offset, pageSize],
+      })
+
+      // Fetch details for each proposal
+      const proposalDetails = await Promise.all(
+        [...ids].reverse().map(async (pid) => {
+          const details = await publicClient.readContract({
+            address: MOCK_ORACLE_ADDRESS as `0x${string}`,
+            abi: mockOracleAbi,
+            functionName: 'getProposal',
+            args: [pid],
+          })
+
+          const [id, proposer, question, outcomeSlotCount, status, createdAt, processedAt, rejectionReason] = details
+
+          return {
+            id: Number(id),
+            proposer,
+            question,
+            outcomeSlotCount: Number(outcomeSlotCount),
+            status: status as 0 | 1 | 2,
+            createdAt: Number(createdAt),
+            processedAt: Number(processedAt),
+            rejectionReason,
+          }
+        })
+      )
+
+      setProposals(proposalDetails)
+    } catch (err) {
+      console.error('Error loading proposals:', err)
+    }
+  }
+
   return (
     <div className="user-app">
       <header className="user-header">
@@ -989,12 +1135,15 @@ export default function UserApp() {
             <p className="tagline">Prediction Markets</p>
           </div>
           <div className="header-actions">
-            <button className="refresh-btn" onClick={loadMarkets} disabled={loading}>
+            <button className="refresh-btn" onClick={() => { loadMarkets(); loadProposals(); }} disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
             <button className="create-btn" onClick={() => setShowCreateModal(true)}>
-              + New Question
+              + Propose Question
             </button>
+            <Link to="/admin" className="admin-link">
+              Admin
+            </Link>
             <Link to="/dev" className="dev-link">
               Dev Tools
             </Link>
@@ -1004,43 +1153,87 @@ export default function UserApp() {
 
       <nav className="categories-nav">
         <div className="categories-scroll">
-          <button className="category-btn active">All Markets</button>
+          <button
+            className={`category-btn ${activeTab === 'markets' ? 'active' : ''}`}
+            onClick={() => setActiveTab('markets')}
+          >
+            Active Markets
+          </button>
+          <button
+            className={`category-btn ${activeTab === 'proposals' ? 'active' : ''}`}
+            onClick={() => setActiveTab('proposals')}
+          >
+            Proposed Markets
+          </button>
         </div>
       </nav>
 
       <main className="markets-container">
-        <div className="markets-header">
-          <h2>{loading ? 'Loading Markets...' : `Markets (${markets.length})`}</h2>
-          <div className="market-info">
-            <p className="network-info">Network: Sepolia Testnet</p>
-            {MOCK_ORACLE_ADDRESS && <p className="oracle-info">Oracle: {MOCK_ORACLE_ADDRESS.slice(0, 10)}...</p>}
-          </div>
-        </div>
+        {activeTab === 'markets' && (
+          <>
+            <div className="markets-header">
+              <h2>{loading ? 'Loading Markets...' : `Markets (${markets.length})`}</h2>
+              <div className="market-info">
+                <p className="network-info">Network: Sepolia Testnet</p>
+                {MOCK_ORACLE_ADDRESS && <p className="oracle-info">Oracle: {MOCK_ORACLE_ADDRESS.slice(0, 10)}...</p>}
+              </div>
+            </div>
 
-        {error && <div className="error-message">{error}</div>}
+            {error && <div className="error-message">{error}</div>}
 
-        {loading && <div className="loading-state">Loading markets from MockOracle...</div>}
+            {loading && <div className="loading-state">Loading markets from MockOracle...</div>}
 
-        {!loading && markets.length === 0 && (
-          <div className="empty-state">
-            <p>No markets found. Create your first question!</p>
-            <button onClick={() => setShowCreateModal(true)} className="empty-state-btn">
-              Create Question
-            </button>
-          </div>
+            {!loading && markets.length === 0 && (
+              <div className="empty-state">
+                <p>No markets found. Propose your first question!</p>
+                <button onClick={() => setShowCreateModal(true)} className="empty-state-btn">
+                  Propose Question
+                </button>
+              </div>
+            )}
+
+            <div className="markets-grid">
+              {markets.map((market) => (
+                <MarketCard
+                  key={market.id}
+                  market={market}
+                  onTrade={setSelectedMarket}
+                  onSplit={setSplitMarket}
+                  onMerge={setMergeMarket}
+                />
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="markets-grid">
-          {markets.map((market) => (
-            <MarketCard 
-              key={market.id} 
-              market={market} 
-              onTrade={setSelectedMarket}
-              onSplit={setSplitMarket}
-              onMerge={setMergeMarket}
-            />
-          ))}
-        </div>
+        {activeTab === 'proposals' && (
+          <>
+            <div className="markets-header">
+              <h2>Proposals ({proposals.length})</h2>
+              <div className="market-info">
+                <p className="network-info">Network: Sepolia Testnet</p>
+                {MOCK_ORACLE_ADDRESS && <p className="oracle-info">Oracle: {MOCK_ORACLE_ADDRESS.slice(0, 10)}...</p>}
+              </div>
+            </div>
+
+            {error && <div className="error-message">{error}</div>}
+
+            {proposals.length === 0 && (
+              <div className="empty-state">
+                <p>No proposals yet. Be the first to propose a question!</p>
+                <button onClick={() => setShowCreateModal(true)} className="empty-state-btn">
+                  Propose Question
+                </button>
+              </div>
+            )}
+
+            <div className="markets-grid">
+              {proposals.map((proposal) => (
+                <ProposalCard key={proposal.id} proposal={proposal} />
+              ))}
+            </div>
+          </>
+        )}
       </main>
 
       <footer className="user-footer">
@@ -1058,7 +1251,14 @@ export default function UserApp() {
       <TradeModal market={selectedMarket} onClose={() => setSelectedMarket(null)} />
       <SplitModal market={splitMarket} onClose={() => setSplitMarket(null)} />
       <MergeModal market={mergeMarket} onClose={() => setMergeMarket(null)} />
-      <CreateQuestionModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={loadMarkets} />
+      <CreateQuestionModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          loadMarkets()
+          loadProposals()
+        }}
+      />
     </div>
   )
 }

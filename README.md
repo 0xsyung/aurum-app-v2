@@ -8,11 +8,13 @@ This app is an operator console for the current `aurum-contracts-v2` state.
 
 Implemented contract interactions:
 - MockOracle flows:
-  - register question (automatically calls `prepareCondition` on ConditionalTokens)
+  - **propose question** (permissionless - anyone can propose)
+  - **approve/reject proposals** (admin-only)
+  - register question (admin-only, automatically calls `prepareCondition` on ConditionalTokens)
   - set/override answer vector
   - submit answer to `ConditionalTokens`
   - inspect one question (`getQuestion`, `getAnswer`)
-  - list recent questions (`getQuestionCount`, `getQuestionIds`)
+  - list questions and proposals (`getQuestionCount`, `getQuestionIds`, `getProposalCount`, `getProposalIds`, `getProposalsByStatus`)
 - Read helpers:
   - `getQuestionIdFromString`
   - `getConditionId`
@@ -47,9 +49,12 @@ Deployment behavior:
 ## Architecture
 
 Core files:
-- `src/App.tsx`: all interaction logic and UI sections
-- `src/App.css`: operator-console styling
-- `src/index.css`: base typography/layout reset
+- `src/UserApp.tsx`: User-facing prediction market interface
+- `src/AdminApp.tsx`: Admin dashboard for oracle management
+- `src/DevApp.tsx`: Developer tools and contract debugging
+- `src/AppRoot.tsx`: React Router configuration
+- `src/UserApp.css`, `src/AdminApp.css`: Component styling
+- `src/index.css`: Base typography/layout reset
 - `vite.config.ts`: Vite config (`base: './'`)
 - `.github/workflows/deploy-pages.yml`: Pages build/deploy workflow
 
@@ -58,29 +63,122 @@ Runtime stack:
 - `viem` for chain reads/writes and wallet client
 - Sepolia chain target only
 
+## Application Routes
+
+- **`/`** - User App: Browse and interact with prediction markets
+- **`/admin`** - Admin Dashboard: Manage oracle operations (admin-only functions)
+- **`/dev`** - Dev Tools: Contract debugging and advanced operations
+
 ## Interaction Design
 
-The UI is structured to minimize operator error by automating required contract dependencies:
+The application has two distinct interfaces:
 
-1. **Create Question**: Automatically registers question with MockOracle and prepares condition on ConditionalTokens (2 transactions)
+### User App (`/`)
+Public-facing interface for market participants with two tabs:
+
+**Active Markets Tab:**
+1. **Browse Markets**: View all approved/registered prediction markets
 2. **Split Position**: Automatically approves collateral and splits position (2 transactions)
 3. **Merge Position**: Combines outcome tokens back into collateral (1 transaction)
-4. **Report Payouts**: Oracle reports resolution outcome (1 transaction)
-5. **Redeem Position**: Winners redeem positions for collateral (1 transaction)
+4. **Redeem Position**: Winners redeem positions for collateral (1 transaction)
 
-### Transaction Details
+**Proposed Markets Tab:**
+1. **Propose Question**: Anyone can submit market proposals (1 transaction, permissionless)
+2. **View Proposals**: See all proposals with status badges:
+   - 🟡 **Pending**: Awaiting admin review
+   - 🟢 **Approved**: Approved and now in Active Markets
+   - 🔴 **Rejected**: Rejected with reason displayed
+3. **Proposer Info**: Shows who proposed each question and when
 
-**Creating a Question:**
-- Transaction 1: Register question with MockOracle
-- Transaction 2: Prepare condition on ConditionalTokens
-- Users see 2 MetaMask prompts
+### Admin Dashboard (`/admin`)
+**Admin-only interface** for oracle management. All functions require the connected wallet to be the oracle admin:
 
-**Splitting a Position:**
-- Transaction 1: Approve ConditionalTokens to spend collateral tokens
-- Transaction 2: Execute splitPosition to receive outcome tokens
-- Users see 2 MetaMask prompts
+**Proposal Management (New!):**
+1. **Review Pending Proposals**: See all user-submitted proposals
+2. **Approve Proposal**: Accept a proposal and make it an active market
+   - Transaction 1: Approve proposal on MockOracle (auto-registers question)
+   - Transaction 2: Prepare condition on ConditionalTokens
+   - Approved markets immediately appear in Active Markets tab
+3. **Reject Proposal**: Decline a proposal with reason
+   - Transaction 1: Reject proposal with explanation
+   - Rejection reason shown to users in Proposed Markets tab
 
-This automated flow prevents common errors like forgetting to prepare conditions or approve tokens before operations.
+**Question Management:**
+1. **Register Question** (Direct): Creates new prediction market without proposal
+   - Transaction 1: Register question with MockOracle
+   - Transaction 2: Prepare condition on ConditionalTokens
+   - Supports both standard and unique question IDs
+   - Note: Most questions now come through the proposal system
+
+2. **Set Answer**: Resolve a question by setting payout numerators
+   - Admin specifies payout values for each outcome
+   - Example: `[1, 0]` means outcome 0 wins, `[1, 1]` means tie
+
+3. **Submit Answer to ConditionalTokens**: Finalize resolution
+   - Calls `reportPayouts()` on ConditionalTokens
+   - Enables users to redeem their winning positions
+
+**Admin Operations:**
+1. **Transfer Admin**: Change oracle admin to a new address
+   - ⚠️ Warning: Current admin loses access after transfer
+
+### Admin Access Control
+
+The MockOracle contract uses an `onlyAdmin` modifier for these functions:
+- `registerQuestion()` / `registerQuestionUnique()` - Direct question registration
+- `approveProposal()` - Approve user proposals
+- `rejectProposal()` - Reject user proposals
+- `setAnswer()` - Set resolution outcomes
+- `submitAnswerToConditionalTokens()` - Finalize resolution
+- `setAdmin()` - Transfer admin rights
+
+**Permissionless functions** (anyone can call):
+- `proposeQuestion()` - Submit market proposals
+
+The admin dashboard displays the current admin address and shows whether your connected wallet is the admin. Non-admin users can view questions and proposals but cannot execute admin operations.
+
+## Proposal Workflow
+
+Aurum implements a **community-driven, admin-curated** market creation system:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. USER PROPOSES                                            │
+│    Anyone → proposeQuestion() → Stored on-chain             │
+│    Status: Pending 🟡                                        │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. ADMIN REVIEWS                                            │
+│    Admin views in /admin → Pending Proposals section        │
+│    Reviews question quality, clarity, duplication           │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+           ┌────────────────┴────────────────┐
+           ↓                                  ↓
+┌──────────────────────┐         ┌──────────────────────────┐
+│ 3a. APPROVE          │         │ 3b. REJECT               │
+│ approveProposal()    │         │ rejectProposal(reason)   │
+│ + prepareCondition() │         │ Status: Rejected 🔴       │
+│ Status: Approved 🟢   │         │ Reason shown to users    │
+│ Becomes Active Market│         └──────────────────────────┘
+└──────────────────────┘
+           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. MARKET ACTIVE                                            │
+│    Users can split/merge/trade positions                    │
+│    Eventually resolved by admin                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Benefits of this approach:**
+- ✅ **Permissionless**: Anyone can propose markets
+- ✅ **Quality control**: Admin curates to prevent spam/duplicates
+- ✅ **Transparency**: All proposals and decisions on-chain
+- ✅ **Community-driven**: Users drive what markets exist
+- ✅ **No backend**: Fully on-chain, no database needed
+
+**Inspired by**: Polymarket's proposal system and UMA's optimistic oracle architecture
 
 ## Design Decisions and Rationale
 
@@ -140,6 +238,27 @@ Why:
 - Target users are dev/operators validating contract behavior
 - Prioritize clarity and transaction traceability over marketing UX
 - Reduce operator error by handling contract dependencies automatically
+
+### 7) On-chain proposal system with admin curation
+Decision:
+- Allow permissionless question proposals via `proposeQuestion()`
+- Require admin approval before questions become active markets
+- Store all proposals and decisions on-chain
+
+Why:
+- **Community-driven**: Users can suggest markets they want
+- **Quality control**: Admin prevents spam, duplicates, and unclear questions
+- **Fully decentralized**: No backend database or off-chain coordination
+- **Transparent**: All proposals and rejection reasons publicly visible
+- **Scalable**: Admin reviews only new proposals, not every market creation
+
+Inspired by:
+- Polymarket's curated market creation process
+- UMA Protocol's optimistic oracle with dispute mechanisms
+
+Tradeoff:
+- Not fully permissionless (admin can be bottleneck)
+- Future enhancement: Could add economic bonds or DAO governance for approval
 
 ### 7) GitHub Pages-native deployment path
 Decision:

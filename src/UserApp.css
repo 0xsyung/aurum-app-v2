@@ -97,6 +97,7 @@
   box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
 }
 
+.admin-link,
 .dev-link {
   color: #94a3b8;
   text-decoration: none;
@@ -107,6 +108,7 @@
   transition: all 0.3s;
 }
 
+.admin-link:hover,
 .dev-link:hover {
   color: #e2e8f0;
   border-color: rgba(226, 232, 240, 0.5);
@@ -261,11 +263,11 @@
   opacity: 1;
 }
 
-.live-badge {
+.live-badge,
+.status-badge {
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: #ef4444;
   color: white;
   padding: 0.35rem 0.75rem;
   border-radius: 4px;
@@ -274,6 +276,22 @@
   letter-spacing: 0.05em;
   z-index: 10;
   white-space: nowrap;
+}
+
+.live-badge {
+  background: #ef4444;
+}
+
+.status-badge.status-pending {
+  background: #eab308;
+}
+
+.status-badge.status-approved {
+  background: #10b981;
+}
+
+.status-badge.status-rejected {
+  background: #ef4444;
 }
 
 .market-header {
@@ -373,6 +391,11 @@
 
 .info-value.resolved {
   color: #ef4444;
+}
+
+.rejection-reason {
+  color: #fca5a5;
+  font-style: italic;
 }
 
 .outcomes-preview {
