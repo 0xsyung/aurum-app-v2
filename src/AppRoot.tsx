@@ -10,9 +10,14 @@ function AppContent() {
   useEffect(() => {
     // Handle redirect from 404.html
     const redirectPath = sessionStorage.getItem('redirectPath')
+    console.log('[AppRoot] Checking for redirectPath:', redirectPath)
+
     if (redirectPath && redirectPath !== '/') {
+      console.log('[AppRoot] Navigating to:', redirectPath)
       sessionStorage.removeItem('redirectPath')
       navigate(redirectPath)
+    } else {
+      console.log('[AppRoot] No redirect needed, current path:', window.location.pathname)
     }
   }, [navigate])
 
