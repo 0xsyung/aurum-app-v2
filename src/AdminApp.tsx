@@ -316,7 +316,7 @@ export default function AdminApp() {
             answered,
             createdAt: Number(createdAt),
             answeredAt: Number(answeredAt),
-            answer: answer.length > 0 ? answer : undefined,
+            answer: answer.length > 0 ? Array.from(answer) : undefined,
           }
         })
       )
@@ -409,7 +409,7 @@ export default function AdminApp() {
       })
 
       setMessage('Waiting for approval...')
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: approveHash })
+      await publicClient.waitForTransactionReceipt({ hash: approveHash })
 
       // Get the questionId from the approval
       const questionId = await publicClient.readContract({
